@@ -26,6 +26,11 @@ submit a link should work in general, but this is not how it should be done with
 - Available in multiple languages
 - Have an idea or a question? -> Open an [issue](https://github.com/emschu/archivebox-quick-add/issues/new)
 
+## Upcoming features
+- Add tags to a URL
+- Choose archiving method instead of using all
+- Provide depth to archiver
+
 ## Install, Build and Run
 
 ```console
