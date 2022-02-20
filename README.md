@@ -1,7 +1,8 @@
 # ArchiveBox QuickAdd
 
-**A simple utility application to quickly add URLs to [ArchiveBox](https://github.com/ArchiveBox/ArchiveBox/) without interrupting your
-current work.**
+**A simple utility application to quickly archive URLs with an existing
+[ArchiveBox](https://github.com/ArchiveBox/ArchiveBox/) instance in the background and without interrupting your current
+work.**
 
 Version: 1.0
 
@@ -11,9 +12,13 @@ Developed with [Golang](https://go.dev/) using the [fyne toolkit](https://github
 
 Please note, that this software is primarily tested on Linux systems at the moment.
 
+*Note:* Because there is no real HTTP API of the ArchiveBox software (yet), the solution used in this app to login and
+submit a link should work in general, but this is not how it should be done with an existing HTTP API.
+
 ## Features
-- Allows you quickly adding a link to ArchiveBox. 
-  - If your clipboard contains a valid URL, it will be set to the input field on app's startup
+
+- Allows you quickly adding a link to ArchiveBox.
+    - If your clipboard contains a valid URL, it will be set to the input field on app's startup
 - Use a borderless window (default: `true`)
 - Close app after archive submission (default: `true`)
 - Check if URL was added (default: `false`)
@@ -41,13 +46,15 @@ Current language support: English and German. Feel free to translate the app and
 
 ## Contributing
 
-If you find a bug or want to request new features, 
-please use [GitHub issues](https://github.com/emschu/archivebox-quick-add/issues).
+If you find a bug or want to request new features, please
+use [GitHub issues](https://github.com/emschu/archivebox-quick-add/issues).
 
-Pull Requests are welcome! 
+Pull Requests are welcome!
 
 ## License
+
 The fyne toolkit is licensed under **BSD 3-Clause License**:
+
 ```text
 Copyright (C) 2018 Fyne.io developers (see AUTHORS)
 All rights reserved.
