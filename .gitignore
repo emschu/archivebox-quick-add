@@ -1,0 +1,9 @@
+.idea
+*.bak
+
+usr
+bin
+out
+archivebox-quick-add
+archivebox-quick-add.tar.gz
+vendor
