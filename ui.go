@@ -15,26 +15,26 @@ var isAppearanceWindowOpen = false
 
 func pasteClipboard() {
 	currentClipboard := window.Clipboard().Content()
-	if len(currentClipboard) > 0 && isUrl(currentClipboard) {
-		inputUrlEntryWidget.SetText(strings.TrimSpace(currentClipboard))
+	if len(currentClipboard) > 0 && isURL(currentClipboard) {
+		inputEntryWidget.SetText(strings.TrimSpace(currentClipboard))
 	}
 }
 
 func showSettingsDialog() {
 	var items []*widget.FormItem
 	instanceURLEntry := widget.NewEntry()
-	instanceURLEntry.Text = application.Preferences().StringWithFallback(PREFERENCE_INSTANCE_URL, "http://127.0.0.1:8000")
+	instanceURLEntry.Text = application.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
 	instanceURLEntry.Validator = validation.NewRegexp("^http[s]?://.*:[0-9]{1,5}$", "invalid URL")
 	items = append(items, widget.NewFormItem(t("ArchiveBoxURL"), instanceURLEntry))
 
 	userNameEntry := widget.NewEntry()
-	userNameEntry.Text = application.Preferences().StringWithFallback(PREFERENCE_USERNAME, "")
+	userNameEntry.Text = application.Preferences().StringWithFallback(preferenceUsername, "")
 	userNameEntry.Validator = validation.NewRegexp("^\\s*\\S{2,}\\s*$", "too short")
 	items = append(items, widget.NewFormItem(t("Username"), userNameEntry))
 
 	passwordEntry := widget.NewPasswordEntry()
 	passwordEntry.ActionItem = nil
-	currentPw := application.Preferences().StringWithFallback(PREFERENCE_PASSWORD, "")
+	currentPw := application.Preferences().StringWithFallback(preferencePassword, "")
 	if len(currentPw) > 0 {
 		passwordEntry.SetPlaceHolder(t("AlreadySet"))
 		passwordEntry.OnChanged = func(s string) {
@@ -50,17 +50,17 @@ func showSettingsDialog() {
 	items = append(items, widget.NewFormItem(t("Password"), passwordEntry))
 
 	borderlessCheckbox := widget.NewCheck("", func(b bool) {})
-	isBorderless := application.Preferences().BoolWithFallback(PREFERENCE_BORDERLESS, true)
+	isBorderless := application.Preferences().BoolWithFallback(preferenceBorderless, true)
 	borderlessCheckbox.Checked = isBorderless
 	items = append(items, widget.NewFormItem(t("BorderlessWindow"), borderlessCheckbox))
 
 	linkAddCheckCheckbox := widget.NewCheck("", func(b bool) {})
-	isAddChecked := application.Preferences().BoolWithFallback(PREFERENCE_CHECK_ADD, false)
+	isAddChecked := application.Preferences().BoolWithFallback(preferenceCheckAdd, false)
 	linkAddCheckCheckbox.Checked = isAddChecked
 	items = append(items, widget.NewFormItem(t("CheckIfURLWasAdded"), linkAddCheckCheckbox))
 
 	closeAfterAddCheckbox := widget.NewCheck("", func(b bool) {})
-	isCloseAfterAdd := application.Preferences().BoolWithFallback(PREFERENCE_CLOSE_AFTER_ADD, false)
+	isCloseAfterAdd := application.Preferences().BoolWithFallback(preferenceCloseAfterAdd, false)
 	closeAfterAddCheckbox.Checked = isCloseAfterAdd
 	items = append(items, widget.NewFormItem(t("CloseAppAfterAddingAURL"), closeAfterAddCheckbox))
 
@@ -74,15 +74,15 @@ func showSettingsDialog() {
 	settingsDialog := dialog.NewForm(t("Settings"), t("Apply"), t("Cancel"), items, func(b bool) {
 		if b {
 			log.Printf("Updating preferences! \n")
-			application.Preferences().SetString(PREFERENCE_INSTANCE_URL, strings.TrimSpace(instanceURLEntry.Text))
-			application.Preferences().SetString(PREFERENCE_USERNAME, strings.TrimSpace(userNameEntry.Text))
+			application.Preferences().SetString(preferenceInstanceURL, strings.TrimSpace(instanceURLEntry.Text))
+			application.Preferences().SetString(preferenceUsername, strings.TrimSpace(userNameEntry.Text))
 			inputPw := strings.TrimSpace(passwordEntry.Text)
 			if len(inputPw) > 0 {
-				application.Preferences().SetString(PREFERENCE_PASSWORD, inputPw)
+				application.Preferences().SetString(preferencePassword, inputPw)
 			}
-			application.Preferences().SetBool(PREFERENCE_BORDERLESS, borderlessCheckbox.Checked)
-			application.Preferences().SetBool(PREFERENCE_CHECK_ADD, linkAddCheckCheckbox.Checked)
-			application.Preferences().SetBool(PREFERENCE_CLOSE_AFTER_ADD, closeAfterAddCheckbox.Checked)
+			application.Preferences().SetBool(preferenceBorderless, borderlessCheckbox.Checked)
+			application.Preferences().SetBool(preferenceCheckAdd, linkAddCheckCheckbox.Checked)
+			application.Preferences().SetBool(preferenceCloseAfterAdd, closeAfterAddCheckbox.Checked)
 		}
 	}, window)
 
@@ -124,11 +124,12 @@ func showFyneSettingsWindow() {
 	settingsWindow.Show()
 }
 
+// URLInputField wrapper for the input field to have control over custom shortcuts
 type URLInputField struct {
 	*widget.Entry
 }
 
-func NewURLInputField() *URLInputField {
+func newURLInputField() *URLInputField {
 	entry := &URLInputField{&widget.Entry{}}
 	entry.ExtendBaseWidget(entry)
 	entry.SetPlaceHolder(t("EnterURL"))
@@ -137,10 +138,11 @@ func NewURLInputField() *URLInputField {
 	return entry
 }
 
+// TypedShortcut override
 func (s *URLInputField) TypedShortcut(shortcut fyne.Shortcut) {
 	log.Printf("%v\n", shortcut.ShortcutName())
 	if shortcut.ShortcutName() == "CustomDesktop:Control+Return" {
-		saveURL(inputUrlEntryWidget.Text)
+		saveURL(inputEntryWidget.Text)
 	} else {
 		s.Entry.TypedShortcut(shortcut)
 	}

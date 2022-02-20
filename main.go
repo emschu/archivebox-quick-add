@@ -34,36 +34,36 @@ var application fyne.App
 var windowSize = fyne.Size{600, 200}
 
 // widgets
-var inputUrlEntryWidget *URLInputField
+var inputEntryWidget *URLInputField
 var addToArchiveBtn *widget.Button
 var infoLabel *widget.Label
-var IsConnected bool = false
+var isConnected = false
 
 var window fyne.Window
 
 var csrfToken *http.Cookie
 var sessionCookie *http.Cookie
 var csrfMiddlewareToken string
-var connectionErr error = nil // store latest error
+var connectionErr error // store latest error
 var appName = "ArchiveBox Quick-Add"
-var appVersion = "1.0"
+var appVersion = "1.1"
 var appLinkToGitHub = "https://github.com/emschu/archivebox-quick-add"
 var isDebug = false
 var localizer *i18n.Localizer
 
 const (
-	APP_ID                     = "org.archivebox.go-quick-add"
-	PREFERENCE_INSTANCE_URL    = "InstanceURL"   // string
-	PREFERENCE_USERNAME        = "Username"      // string
-	PREFERENCE_PASSWORD        = "Password"      // string
-	PREFERENCE_BORDERLESS      = "Borderless"    // bool
-	PREFERENCE_CHECK_ADD       = "CheckAdd"      // bool
-	PREFERENCE_CLOSE_AFTER_ADD = "CloseAfterAdd" // bool
-	PREFERENCE_FIRST_RUN       = "FirstRun"      // bool
+	appID                   = "org.archivebox.go-quick-add"
+	preferenceInstanceURL   = "InstanceURL"   // string
+	preferenceUsername      = "Username"      // string
+	preferencePassword      = "Password"      // string
+	preferenceBorderless    = "Borderless"    // bool
+	preferenceCheckAdd      = "CheckAdd"      // bool
+	preferenceCloseAfterAdd = "CloseAfterAdd" // bool
+	preferenceFirstRun      = "FirstRun"      // bool
 )
 
 func main() {
-	application = app.NewWithID(APP_ID)
+	application = app.NewWithID(appID)
 	path, err := fyne.LoadResourceFromPath("./Icon.png")
 	if err != nil {
 		log.Printf("Error loading app's Icon.png!\n")
@@ -72,14 +72,14 @@ func main() {
 
 	initI18n()
 
-	isFirstRun := application.Preferences().BoolWithFallback(PREFERENCE_FIRST_RUN, true)
+	isFirstRun := application.Preferences().BoolWithFallback(preferenceFirstRun, true)
 	if isFirstRun {
 		// initial preference setup
 		doInitialPreferenceSetup()
 	}
 
-	archiveBoxURL = application.Preferences().StringWithFallback(PREFERENCE_INSTANCE_URL, "http://127.0.0.1:8000")
-	isSplashScreen := application.Preferences().BoolWithFallback(PREFERENCE_BORDERLESS, true)
+	archiveBoxURL = application.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
+	isSplashScreen := application.Preferences().BoolWithFallback(preferenceBorderless, true)
 	drv, ok := fyne.CurrentApp().Driver().(desktop.Driver)
 	if ok && isSplashScreen {
 		window = drv.CreateSplashWindow()
@@ -97,7 +97,7 @@ func main() {
 			safeClose()
 		}
 		if k.Name == fyne.KeyReturn {
-			saveURL(inputUrlEntryWidget.Text)
+			saveURL(inputEntryWidget.Text)
 		}
 	})
 
@@ -135,7 +135,7 @@ func main() {
 		instanceLink = widget.NewHyperlink(archiveBoxURL, parsedURL)
 	}
 
-	inputUrlEntryWidget = NewURLInputField()
+	inputEntryWidget = newURLInputField()
 
 	go setupArchiveBoxConnection()
 
@@ -146,11 +146,11 @@ func main() {
 	clipBoardBtn := widget.NewButtonWithIcon(t("PasteClipboard"), theme.ContentPasteIcon(), func() {
 		pasteClipboard()
 	})
-	inputUrlEntryWidget.OnSubmitted = func(s string) {
+	inputEntryWidget.OnSubmitted = func(s string) {
 		saveURL(s)
 	}
 	addToArchiveBtn.OnTapped = func() {
-		saveURL(inputUrlEntryWidget.Text)
+		saveURL(inputEntryWidget.Text)
 	}
 
 	settingsBtn := widget.NewButtonWithIcon(t("Settings"), theme.SettingsIcon(), func() {
@@ -177,7 +177,7 @@ func main() {
 			instanceLink,
 		),
 		infoLabel,
-		inputUrlEntryWidget,
+		inputEntryWidget,
 		addToArchiveBtn,
 		clipBoardBtn,
 		cancelBtn,
@@ -187,7 +187,7 @@ func main() {
 	// called on startup
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		window.Canvas().Focus(inputUrlEntryWidget)
+		window.Canvas().Focus(inputEntryWidget)
 
 		pasteClipboard()
 	}()
@@ -195,14 +195,14 @@ func main() {
 }
 
 func doInitialPreferenceSetup() {
-	application.Preferences().SetString(PREFERENCE_INSTANCE_URL, "http://127.0.0.1:8000")
-	application.Preferences().SetString(PREFERENCE_USERNAME, "")
-	application.Preferences().SetString(PREFERENCE_PASSWORD, "")
-	application.Preferences().SetBool(PREFERENCE_BORDERLESS, true)
-	application.Preferences().SetBool(PREFERENCE_CLOSE_AFTER_ADD, true)
-	application.Preferences().SetBool(PREFERENCE_CHECK_ADD, false)
+	application.Preferences().SetString(preferenceInstanceURL, "http://127.0.0.1:8000")
+	application.Preferences().SetString(preferenceUsername, "")
+	application.Preferences().SetString(preferencePassword, "")
+	application.Preferences().SetBool(preferenceBorderless, true)
+	application.Preferences().SetBool(preferenceCloseAfterAdd, true)
+	application.Preferences().SetBool(preferenceCheckAdd, true)
 
-	application.Preferences().SetBool(PREFERENCE_FIRST_RUN, false)
+	application.Preferences().SetBool(preferenceFirstRun, false)
 }
 
 func initI18n() {
@@ -255,7 +255,7 @@ func t(s string) string {
 }
 
 func safeClose() {
-	if len(strings.TrimSpace(inputUrlEntryWidget.Text)) > 5 {
+	if len(strings.TrimSpace(inputEntryWidget.Text)) > 5 {
 		dialog.ShowConfirm(t("Cancel"), t("DoYouReallyWantToClose"), func(decision bool) {
 			if decision { // = yes
 				application.Quit()
@@ -272,7 +272,7 @@ func connect() {
 }
 
 func disconnect() {
-	IsConnected = false
+	isConnected = false
 	log.Printf("Warn: No connection could be established!\n")
 	infoLabel.Text = t("NoConnectionPossible")
 	if connectionErr != nil {

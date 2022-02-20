@@ -11,9 +11,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
-func isUrl(inputStr string) bool {
+func isURL(inputStr string) bool {
 	parse, err := url.Parse(inputStr)
 	if err != nil {
 		return false
@@ -26,8 +27,8 @@ func isUrl(inputStr string) bool {
 }
 
 func doArchiveBoxLogin() {
-	pw := application.Preferences().StringWithFallback(PREFERENCE_PASSWORD, "")
-	username := application.Preferences().StringWithFallback(PREFERENCE_USERNAME, "")
+	pw := application.Preferences().StringWithFallback(preferencePassword, "")
+	username := application.Preferences().StringWithFallback(preferenceUsername, "")
 
 	buffer := bytes.NewBuffer([]byte(fmt.Sprintf("csrfmiddlewaretoken=%s&username=%s&password=%s&next=%2F",
 		csrfMiddlewareToken, url.QueryEscape(username), url.QueryEscape(pw))))
@@ -52,7 +53,7 @@ func doArchiveBoxLogin() {
 		if i.Name == "sessionid" {
 			sessionCookie = i
 			log.Printf("Session id is set successfully")
-			IsConnected = true
+			isConnected = true
 		}
 	}
 }
@@ -123,7 +124,7 @@ func setupArchiveBoxConnection() {
 		disconnect()
 		return
 	}
-	if !isUrl(archiveBoxURL) {
+	if !isURL(archiveBoxURL) {
 		connectionErr = fmt.Errorf("url does not start with 'http[s]://'")
 		disconnect()
 		return
@@ -177,7 +178,7 @@ func setupArchiveBoxConnection() {
 	}
 }
 
-func isUrlAdded(urlToCheck string) bool {
+func isURLPresent(urlToCheck string) bool {
 	snapshotSearchPath := fmt.Sprintf("/admin/core/snapshot/?q=%s", url.QueryEscape(urlToCheck))
 
 	request, err := buildGetRequest(snapshotSearchPath)
@@ -209,7 +210,7 @@ func isUrlAdded(urlToCheck string) bool {
 func sendURLToArchiveBox(urlToSave string) (bool, error) {
 	connect()
 	urlToSave = strings.TrimSpace(urlToSave)
-	if !IsConnected {
+	if !isConnected {
 		return false, fmt.Errorf(t("NoConnectionToInstance"))
 	}
 
@@ -217,7 +218,7 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 	if len(urlToSave) < 5 {
 		return false, fmt.Errorf(t("URLTooShort"))
 	}
-	if !isUrl(urlToSave) {
+	if !isURL(urlToSave) {
 		return false, fmt.Errorf(t("InvalidURL"))
 	}
 
@@ -228,8 +229,15 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 		panic(err)
 	}
 	transport := http.Transport{}
+
+	// the endpoint sometimes needs a lot of time (~60 secs) until there is a response
+	// therefore we 'cancel' the post request after 2 secs and ArchiveBox should have the request
+	transport.ResponseHeaderTimeout = 2 * time.Second // this should be enough time to wait for the request being processed by ArchiveBox
 	do, err := transport.RoundTrip(request)
 	if err != nil {
+		if strings.HasSuffix(err.Error(), "timeout awaiting response headers") {
+			return true, nil
+		}
 		msg := tWithArgs("ProblemCallingArchiveBox", struct {
 			URL string
 		}{URL: archiveBoxURL})
@@ -253,22 +261,25 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 // should be non-blocking to be safe for ui, handles validation of input
 func saveURL(urlInput string) {
 	infoLabel.Text = ""
+	urlInput = strings.TrimSpace(urlInput)
 	log.Printf("Started add event for url '%s'\n", urlInput)
 	go func() {
-		inputUrlEntryWidget.Disable()
+		inputEntryWidget.Disable()
 		addToArchiveBtn.Disable()
 		hasWorked, err := sendURLToArchiveBox(urlInput)
 		if hasWorked {
 			// all went fine!
-			closeAppPref := application.Preferences().BoolWithFallback(PREFERENCE_CLOSE_AFTER_ADD, false)
-			checkAfterAddPref := application.Preferences().BoolWithFallback(PREFERENCE_CHECK_ADD, false)
+			closeAppPref := application.Preferences().BoolWithFallback(preferenceCloseAfterAdd, false)
+			checkAfterAddPref := application.Preferences().BoolWithFallback(preferenceCheckAdd, false)
 			if checkAfterAddPref {
-				if isUrlAdded(urlInput) {
+				if isURLPresent(urlInput) {
 					application.SendNotification(&fyne.Notification{
 						Title: tWithArgs("NotificationTitle", struct {
 							APP_NAME string
 						}{APP_NAME: appName}),
-						Content: t("URLHasBeenAddedToArchivebox"),
+						Content: tWithArgs("URLHasBeenAddedToArchivebox", struct {
+							URL string
+						}{URL: urlInput}),
 					})
 					if closeAppPref {
 						application.Quit()
@@ -286,7 +297,9 @@ func saveURL(urlInput string) {
 					Title: tWithArgs("NotificationTitle", struct {
 						APP_NAME string
 					}{APP_NAME: appName}),
-					Content: t("URLHasBeenSentToArchivebox"),
+					Content: tWithArgs("URLHasBeenSentToArchivebox", struct {
+						URL string
+					}{URL: urlInput}),
 				})
 				if closeAppPref {
 					application.Quit()
@@ -302,7 +315,7 @@ func saveURL(urlInput string) {
 			infoLabel.Text = t("UnknownProblemAddingURL")
 		}
 		infoLabel.Refresh()
-		inputUrlEntryWidget.Enable()
+		inputEntryWidget.Enable()
 		addToArchiveBtn.Enable()
 		window.Resize(windowSize)
 	}()

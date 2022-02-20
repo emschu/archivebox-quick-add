@@ -1,6 +1,9 @@
 .idea
 *.bak
 
+fyne-cross
+release
+
 usr
 bin
 out
