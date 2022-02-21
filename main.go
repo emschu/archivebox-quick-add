@@ -56,7 +56,8 @@ var inputEntryWidget *URLInputField
 var addToArchiveBtn *widget.Button
 var infoLabel *widget.Label
 var isConnected = false
-var isSubmissionBlocked atomicBool
+var isSubmissionBlocked = newAtomicBool(false)
+var isCloseBlocked = newAtomicBool(false)
 
 var window fyne.Window
 
@@ -65,7 +66,7 @@ var sessionCookie *http.Cookie
 var csrfMiddlewareToken string
 var connectionErr error // store latest error
 var appName = "ArchiveBox Quick-Add"
-var appVersion = "1.1"
+var appVersion = "1.2"
 var appLinkToGitHub = "https://github.com/emschu/archivebox-quick-add"
 var isDebug = false
 var localizer *i18n.Localizer
@@ -82,7 +83,6 @@ const (
 )
 
 func main() {
-	isSubmissionBlocked.setFalse()
 	application = app.NewWithID(appID)
 	application.SetIcon(resourceIconPng)
 
@@ -175,12 +175,14 @@ func main() {
 
 	infoBtn := widget.NewButtonWithIcon(t("Info"), theme.InfoIcon(), func() {
 		isSubmissionBlocked.setTrue()
+		isCloseBlocked.setTrue()
 		informationD := dialog.NewInformation(t("Information"),
 			fmt.Sprintf("%s\n%d - %s: %s\n%s: %s\n\n%s\n\n%s",
-				appName, time.Now().Year(), appVersion, t("Version"),
-				"GNU Affero General Public License v3", t("License"), appLinkToGitHub, t("InfoIndependence")), window)
+				appName, time.Now().Year(), t("Version"), appVersion,
+				t("License"), "GNU Affero General Public License v3", appLinkToGitHub, t("InfoIndependence")), window)
 		informationD.SetOnClosed(func() {
 			isSubmissionBlocked.setFalse()
+			isCloseBlocked.setFalse()
 		})
 		informationD.Show()
 	})
@@ -276,8 +278,12 @@ func t(s string) string {
 }
 
 func safeClose() {
+	if isCloseBlocked.isSet() {
+		return
+	}
 	if len(strings.TrimSpace(inputEntryWidget.Text)) > 5 {
 		// lock submission
+		isCloseBlocked.setTrue()
 		isSubmissionBlocked.setTrue()
 		confirmD := dialog.NewConfirm(t("Cancel"), t("DoYouReallyWantToClose"), func(decision bool) {
 			if decision { // = yes
@@ -286,6 +292,7 @@ func safeClose() {
 		}, window)
 		confirmD.SetOnClosed(func() {
 			isSubmissionBlocked.setFalse()
+			isCloseBlocked.setFalse()
 		})
 		confirmD.Show()
 	} else {
@@ -313,3 +320,13 @@ type atomicBool int32
 func (b *atomicBool) isSet() bool { return atomic.LoadInt32((*int32)(b)) != 0 }
 func (b *atomicBool) setTrue()    { atomic.StoreInt32((*int32)(b), 1) }
 func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
+
+func newAtomicBool(startVal bool) *atomicBool {
+	var ab atomicBool
+	if startVal {
+		ab.setTrue()
+	} else {
+		ab.setFalse()
+	}
+	return &ab
+}

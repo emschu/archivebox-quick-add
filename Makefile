@@ -2,7 +2,8 @@ SHELL := /bin/bash
 
 # go requirements: fyne + fyne-cross
 
-APP_VERSION = "v1-1"
+APP_VERSION_STR = "v1-2"
+APP_VERSION_DOT := "1.2"
 
 GO := GO111MODULE=on CGO_ENABLED=1 go
 GO_PATH = $(shell $(GO) env GOPATH)
@@ -36,25 +37,30 @@ package: clean build ## packages the application on the local platform
 
 .PHONY: release
 release: clean ## release build for all platforms
-	$(GO_PATH)/bin/fyne-cross windows -name archivebox-quick-add-windows-amd64-$(APP_VERSION).exe -arch "amd64"
-	$(GO_PATH)/bin/fyne-cross windows -name archivebox-quick-add-windows-386-$(APP_VERSION).exe -arch "386"
-	$(GO_PATH)/bin/fyne-cross freebsd -name archivebox-quick-add-freebsd-arm64-$(APP_VERSION) -arch "arm64"
-	$(GO_PATH)/bin/fyne-cross freebsd -name archivebox-quick-add-freebsd-amd64-$(APP_VERSION) -arch "amd64"
+	$(GO_PATH)/bin/fyne-cross windows -name archivebox-quick-add-windows-amd64-$(APP_VERSION_STR).exe -arch "amd64"
+	$(GO_PATH)/bin/fyne-cross windows -name archivebox-quick-add-windows-386-$(APP_VERSION_STR).exe -arch "386"
+	$(GO_PATH)/bin/fyne-cross freebsd -name archivebox-quick-add-freebsd-arm64-$(APP_VERSION_STR) -arch "arm64"
+	$(GO_PATH)/bin/fyne-cross freebsd -name archivebox-quick-add-freebsd-amd64-$(APP_VERSION_STR) -arch "amd64"
 	#$(GO_PATH)/bin/fyne-cross darwin -name archivebox-quick-add-$(APP_VERSION) -arch "*" -app-id "org.archivebox.quick-add"
-	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-386-$(APP_VERSION) -arch "386"
-	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-amd64-$(APP_VERSION) -arch "amd64"
-	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-arm-$(APP_VERSION) -arch "arm"
-	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-arm64-$(APP_VERSION) -arch "arm64"
+	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-386-$(APP_VERSION_STR) -arch "386"
+	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-amd64-$(APP_VERSION_STR) -arch "amd64"
+	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-arm-$(APP_VERSION_STR) -arch "arm"
+	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-arm64-$(APP_VERSION_STR) -arch "arm64"
 
-	cp -f fyne-cross/dist/windows-amd64/archivebox-quick-add-windows-amd64-$(APP_VERSION).exe.zip release
-	cp -f fyne-cross/dist/windows-386/archivebox-quick-add-windows-386-$(APP_VERSION).exe.zip release
-	cp -f fyne-cross/dist/freebsd-arm64/archivebox-quick-add-freebsd-arm64-$(APP_VERSION).tar.xz release
-	cp -f fyne-cross/dist/freebsd-amd64/archivebox-quick-add-freebsd-amd64-$(APP_VERSION).tar.xz release
+	cp -f fyne-cross/dist/windows-amd64/archivebox-quick-add-windows-amd64-$(APP_VERSION_STR).exe.zip release
+	cp -f fyne-cross/dist/windows-386/archivebox-quick-add-windows-386-$(APP_VERSION_STR).exe.zip release
+	cp -f fyne-cross/dist/freebsd-arm64/archivebox-quick-add-freebsd-arm64-$(APP_VERSION_STR).tar.xz release
+	cp -f fyne-cross/dist/freebsd-amd64/archivebox-quick-add-freebsd-amd64-$(APP_VERSION_STR).tar.xz release
 
-	cp -f fyne-cross/dist/linux-386/archivebox-quick-add-linux-386-$(APP_VERSION).tar.xz release
-	cp -f fyne-cross/dist/linux-amd64/archivebox-quick-add-linux-amd64-$(APP_VERSION).tar.xz release
-	cp -f fyne-cross/dist/linux-arm/archivebox-quick-add-linux-arm-$(APP_VERSION).tar.xz release
-	cp -f fyne-cross/dist/linux-arm64/archivebox-quick-add-linux-arm64-$(APP_VERSION).tar.xz release
+	cp -f fyne-cross/dist/linux-386/archivebox-quick-add-linux-386-$(APP_VERSION_STR).tar.xz release
+	cp -f fyne-cross/dist/linux-amd64/archivebox-quick-add-linux-amd64-$(APP_VERSION_STR).tar.xz release
+	cp -f fyne-cross/dist/linux-arm/archivebox-quick-add-linux-arm-$(APP_VERSION_STR).tar.xz release
+	cp -f fyne-cross/dist/linux-arm64/archivebox-quick-add-linux-arm64-$(APP_VERSION_STR).tar.xz release
+
+.PHONY: version
+version: ## populate the current version defined in this make file
+	sed -r -i 's/var appVersion = "([0-9]+.[0-9]+)"/var appVersion = "'$(APP_VERSION_DOT)'"/g' main.go
+	sed -r -i 's/Version: ([0-9]+.[0-9]+)/Version: '$(APP_VERSION_DOT)'/g' README.md
 
 .PHONY: clean
 clean: ## clean up project

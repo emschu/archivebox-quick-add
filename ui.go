@@ -88,6 +88,7 @@ func showSettingsDialog() {
 	})
 	items = append(items, widget.NewFormItem(t("Appearance"), appearanceBtn))
 
+	isCloseBlocked.setTrue()
 	isSubmissionBlocked.setTrue()
 	settingsDialog := dialog.NewForm(t("Settings"), t("Apply"), t("Cancel"), items, func(b bool) {
 		if b {
@@ -114,6 +115,7 @@ func showSettingsDialog() {
 	})
 	settingsDialog.SetOnClosed(func() {
 		// restore original main window settings
+		isCloseBlocked.setFalse()
 		isSubmissionBlocked.setFalse()
 		window.Resize(windowSize)
 	})
