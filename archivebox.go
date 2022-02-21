@@ -277,8 +277,14 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 
 // should be non-blocking to be safe for ui, handles validation of input
 func saveURL(urlInput string) {
-	infoLabel.Text = ""
 	urlInput = strings.TrimSpace(urlInput)
+	if isSubmissionBlocked.isSet() {
+		if isDebug {
+			log.Printf("Blocked submission of URL '%s'\n", urlInput)
+		}
+		return
+	}
+	infoLabel.Text = ""
 	log.Printf("Started add event for url '%s'\n", urlInput)
 	go func() {
 		inputEntryWidget.Disable()
@@ -294,7 +300,7 @@ func saveURL(urlInput string) {
 						Title: tWithArgs("NotificationTitle", struct {
 							APP_NAME string
 						}{APP_NAME: appName}),
-						Content: tWithArgs("URLHasBeenAddedToArchivebox", struct {
+						Content: tWithArgs("URLHasBeenAdded", struct {
 							URL string
 						}{URL: urlInput}),
 					})
@@ -314,7 +320,7 @@ func saveURL(urlInput string) {
 					Title: tWithArgs("NotificationTitle", struct {
 						APP_NAME string
 					}{APP_NAME: appName}),
-					Content: tWithArgs("URLHasBeenSentToArchivebox", struct {
+					Content: tWithArgs("URLHasBeenSent", struct {
 						URL string
 					}{URL: urlInput}),
 				})

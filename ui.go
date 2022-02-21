@@ -79,7 +79,7 @@ func showSettingsDialog() {
 	closeAfterAddCheckbox := widget.NewCheck("", func(b bool) {})
 	isCloseAfterAdd := application.Preferences().BoolWithFallback(preferenceCloseAfterAdd, false)
 	closeAfterAddCheckbox.Checked = isCloseAfterAdd
-	items = append(items, widget.NewFormItem(t("CloseAppAfterAddingAURL"), closeAfterAddCheckbox))
+	items = append(items, widget.NewFormItem(t("CloseAppAfterArchiving"), closeAfterAddCheckbox))
 
 	newSettings := settings.NewSettings()
 	appearanceBtn := widget.NewButtonWithIcon("", newSettings.AppearanceIcon(), func() {
@@ -88,6 +88,7 @@ func showSettingsDialog() {
 	})
 	items = append(items, widget.NewFormItem(t("Appearance"), appearanceBtn))
 
+	isSubmissionBlocked.setTrue()
 	settingsDialog := dialog.NewForm(t("Settings"), t("Apply"), t("Cancel"), items, func(b bool) {
 		if b {
 			log.Printf("Updating preferences! \n")
@@ -113,6 +114,7 @@ func showSettingsDialog() {
 	})
 	settingsDialog.SetOnClosed(func() {
 		// restore original main window settings
+		isSubmissionBlocked.setFalse()
 		window.Resize(windowSize)
 	})
 	settingsDialog.Show()

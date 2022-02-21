@@ -37,6 +37,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -55,6 +56,7 @@ var inputEntryWidget *URLInputField
 var addToArchiveBtn *widget.Button
 var infoLabel *widget.Label
 var isConnected = false
+var isSubmissionBlocked atomicBool
 
 var window fyne.Window
 
@@ -80,12 +82,9 @@ const (
 )
 
 func main() {
+	isSubmissionBlocked.setFalse()
 	application = app.NewWithID(appID)
-	path, err := fyne.LoadResourceFromPath("./Icon.png")
-	if err != nil {
-		log.Printf("Error loading app's Icon.png!\n")
-	}
-	application.SetIcon(path)
+	application.SetIcon(resourceIconPng)
 
 	initI18n()
 
@@ -175,10 +174,15 @@ func main() {
 	})
 
 	infoBtn := widget.NewButtonWithIcon(t("Info"), theme.InfoIcon(), func() {
-		dialog.NewInformation(t("Information"),
+		isSubmissionBlocked.setTrue()
+		informationD := dialog.NewInformation(t("Information"),
 			fmt.Sprintf("%s\n%d - %s: %s\n%s: %s\n\n%s\n\n%s",
 				appName, time.Now().Year(), appVersion, t("Version"),
-				"GNU Affero General Public License v3", t("License"), appLinkToGitHub, t("InfoIndependence")), window).Show()
+				"GNU Affero General Public License v3", t("License"), appLinkToGitHub, t("InfoIndependence")), window)
+		informationD.SetOnClosed(func() {
+			isSubmissionBlocked.setFalse()
+		})
+		informationD.Show()
 	})
 
 	window.SetContent(container.NewVBox(
@@ -273,11 +277,17 @@ func t(s string) string {
 
 func safeClose() {
 	if len(strings.TrimSpace(inputEntryWidget.Text)) > 5 {
-		dialog.ShowConfirm(t("Cancel"), t("DoYouReallyWantToClose"), func(decision bool) {
+		// lock submission
+		isSubmissionBlocked.setTrue()
+		confirmD := dialog.NewConfirm(t("Cancel"), t("DoYouReallyWantToClose"), func(decision bool) {
 			if decision { // = yes
 				application.Quit()
 			}
 		}, window)
+		confirmD.SetOnClosed(func() {
+			isSubmissionBlocked.setFalse()
+		})
+		confirmD.Show()
 	} else {
 		// close immediately if input is empty
 		application.Quit()
@@ -297,3 +307,9 @@ func disconnect() {
 	}
 	infoLabel.Refresh()
 }
+
+type atomicBool int32
+
+func (b *atomicBool) isSet() bool { return atomic.LoadInt32((*int32)(b)) != 0 }
+func (b *atomicBool) setTrue()    { atomic.StoreInt32((*int32)(b), 1) }
+func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }

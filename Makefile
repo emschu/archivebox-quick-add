@@ -28,6 +28,7 @@ bundle: ## bundle resources
 	mv de2.json assets/de.json
 	$(GO_PATH)/bin/fyne bundle "assets/en.json" > bundled.go
 	$(GO_PATH)/bin/fyne bundle -append "assets/de.json" >> bundled.go
+	$(GO_PATH)/bin/fyne bundle -append "Icon.png" >> bundled.go
 
 .PHONY: package
 package: clean build ## packages the application on the local platform
