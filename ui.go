@@ -31,9 +31,14 @@ import (
 var isAppearanceWindowOpen = false
 
 func pasteClipboard() {
-	currentClipboard := window.Clipboard().Content()
-	if len(currentClipboard) > 0 && isURL(currentClipboard) {
-		inputEntryWidget.SetText(strings.TrimSpace(currentClipboard))
+	clipboard := window.Clipboard()
+	if clipboard != nil {
+		currentClipboard := clipboard.Content()
+		if len(currentClipboard) > 0 && isURL(currentClipboard) {
+			inputEntryWidget.SetText(strings.TrimSpace(currentClipboard))
+		}
+	} else {
+		log.Printf("Could not access clipboard!\n")
 	}
 }
 
