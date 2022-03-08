@@ -47,7 +47,7 @@ func doArchiveBoxLogin() {
 	pw := application.Preferences().StringWithFallback(preferencePassword, "")
 	username := application.Preferences().StringWithFallback(preferenceUsername, "")
 
-	buffer := bytes.NewBuffer([]byte(fmt.Sprintf("csrfmiddlewaretoken=%s&username=%s&password=%s&next=%2F",
+	buffer := bytes.NewBuffer([]byte(fmt.Sprintf("csrfmiddlewaretoken=%s&username=%s&password=%s&next=%%2F",
 		csrfMiddlewareToken, url.QueryEscape(username), url.QueryEscape(pw))))
 
 	request, err := buildPostRequest("/admin/login/?next=", buffer)
@@ -225,7 +225,7 @@ func isURLPresent(urlToCheck string) bool {
 }
 
 func sendURLToArchiveBox(urlToSave string) (bool, error) {
-	connect()
+	setupArchiveBoxConnection()
 	urlToSave = strings.TrimSpace(urlToSave)
 	if !isConnected {
 		return false, fmt.Errorf(t("NoConnectionToInstance"))
@@ -253,7 +253,7 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 	do, err := transport.RoundTrip(request)
 	if err != nil {
 		if strings.HasSuffix(err.Error(), "timeout awaiting response headers") {
-			return true, nil
+			return false, nil
 		}
 		msg := tWithArgs("ProblemCallingArchiveBox", struct {
 			URL string
@@ -296,17 +296,23 @@ func saveURL(urlInput string) {
 			checkAfterAddPref := application.Preferences().BoolWithFallback(preferenceCheckAdd, false)
 			if checkAfterAddPref {
 				if isURLPresent(urlInput) {
+					var urlString string
+					urlString, err = url.QueryUnescape(urlInput)
+					if err != nil {
+						urlString = urlInput
+					}
 					application.SendNotification(&fyne.Notification{
 						Title: tWithArgs("NotificationTitle", struct {
 							APP_NAME string
 						}{APP_NAME: appName}),
 						Content: tWithArgs("URLHasBeenAdded", struct {
 							URL string
-						}{URL: urlInput}),
+						}{URL: urlString}),
 					})
 					if closeAppPref {
 						application.Quit()
 					}
+					inputEntryWidget.SetText("")
 				} else {
 					application.SendNotification(&fyne.Notification{
 						Title: tWithArgs("NotificationTitle", struct {
@@ -327,8 +333,8 @@ func saveURL(urlInput string) {
 				if closeAppPref {
 					application.Quit()
 				}
+				inputEntryWidget.SetText("")
 			}
-			return
 		}
 		if err != nil {
 			infoLabel.Text = tWithArgs("ProblemAddingURL", struct {
@@ -339,7 +345,9 @@ func saveURL(urlInput string) {
 		}
 		infoLabel.Refresh()
 		inputEntryWidget.Enable()
+		inputEntryWidget.Refresh()
 		addToArchiveBtn.Enable()
+		addToArchiveBtn.Refresh()
 		window.Resize(windowSize)
 	}()
 	infoLabel.Refresh()

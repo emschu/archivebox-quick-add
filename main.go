@@ -66,7 +66,7 @@ var sessionCookie *http.Cookie
 var csrfMiddlewareToken string
 var connectionErr error // store latest error
 var appName = "ArchiveBox Quick-Add"
-var appVersion = "1.2"
+var appVersion = "1.3"
 var appLinkToGitHub = "https://github.com/emschu/archivebox-quick-add"
 var isDebug = false
 var localizer *i18n.Localizer
@@ -299,10 +299,6 @@ func safeClose() {
 		// close immediately if input is empty
 		application.Quit()
 	}
-}
-
-func connect() {
-	setupArchiveBoxConnection()
 }
 
 func disconnect() {
