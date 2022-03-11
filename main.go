@@ -41,38 +41,51 @@ import (
 	"time"
 )
 
+// default http client
 var httpClient = &http.Client{
-	Timeout: time.Second * 10,
+	Timeout: 10 * time.Second,
+}
+var archiveSearchHTTPClient = &http.Client{
+	Timeout: 30 * time.Second,
 }
 
 // preferences
-var archiveBoxURL string
+var archiveBoxURL string // url to instance
+// TODO: replace to single function
 
-var application fyne.App
+var fyneApplication fyne.App
+var window fyne.Window
 var windowSize = fyne.Size{600, 200}
 
 // widgets
 var inputEntryWidget *URLInputField
 var addToArchiveBtn *widget.Button
 var infoLabel *widget.Label
-var isConnected = false
-var isSubmissionBlocked = newAtomicBool(false)
-var isCloseBlocked = newAtomicBool(false)
 
-var window fyne.Window
+var appConfig applicationConfiguration
+var appSessionState sessionState
 
-var csrfToken *http.Cookie
-var sessionCookie *http.Cookie
-var csrfMiddlewareToken string
-var connectionErr error // store latest error
-var appName = "ArchiveBox Quick-Add"
-var appVersion = "1.3"
-var appLinkToGitHub = "https://github.com/emschu/archivebox-quick-add"
 var isDebug = false
-var localizer *i18n.Localizer
+
+type applicationConfiguration struct {
+	AppID           string
+	AppName         string
+	AppVersion      string
+	AppLinkToGitHub string
+	Localizer       *i18n.Localizer
+}
+
+type sessionState struct {
+	IsConnected         bool
+	CsrfToken           *http.Cookie
+	SessionCookie       *http.Cookie
+	CsrfMiddlewareToken string
+	ConnectionErr       error // store latest error
+	IsSubmissionBlocked atomicBool
+	IsCloseBlocked      atomicBool
+}
 
 const (
-	appID                   = "org.archivebox.go-quick-add"
 	preferenceInstanceURL   = "InstanceURL"   // string
 	preferenceUsername      = "Username"      // string
 	preferencePassword      = "Password"      // string
@@ -83,24 +96,34 @@ const (
 )
 
 func main() {
-	application = app.NewWithID(appID)
-	application.SetIcon(resourceIconPng)
-
+	appConfig = applicationConfiguration{
+		AppID:           "org.archivebox.go-quick-add",
+		AppName:         "ArchiveBox Quick-Add",
+		AppVersion:      "1.4",
+		AppLinkToGitHub: "https://github.com/emschu/archivebox-quick-add",
+	}
+	appSessionState = sessionState{}
+	appSessionState.IsConnected = false
+	appSessionState.IsSubmissionBlocked = *newAtomicBool(false)
+	appSessionState.IsCloseBlocked = *newAtomicBool(false)
 	initI18n()
 
-	isFirstRun := application.Preferences().BoolWithFallback(preferenceFirstRun, true)
+	fyneApplication = app.NewWithID(appConfig.AppID)
+	fyneApplication.SetIcon(resourceIconPng)
+
+	isFirstRun := fyneApplication.Preferences().BoolWithFallback(preferenceFirstRun, true)
 	if isFirstRun {
 		// initial preference setup
 		doInitialPreferenceSetup()
 	}
 
-	archiveBoxURL = application.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
-	isSplashScreen := application.Preferences().BoolWithFallback(preferenceBorderless, true)
+	archiveBoxURL = fyneApplication.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
+	isSplashScreen := fyneApplication.Preferences().BoolWithFallback(preferenceBorderless, true)
 	drv, ok := fyne.CurrentApp().Driver().(desktop.Driver)
 	if ok && isSplashScreen {
 		window = drv.CreateSplashWindow()
 	} else {
-		window = application.NewWindow(appName)
+		window = fyneApplication.NewWindow(appConfig.AppName)
 	}
 
 	window.CenterOnScreen()
@@ -117,7 +140,7 @@ func main() {
 		}
 	})
 
-	logoTextItem := canvas.NewText(appName, color.White)
+	logoTextItem := canvas.NewText(appConfig.AppName, color.White)
 	logoTextItem.Alignment = fyne.TextAlignCenter
 	logoTextItem.TextSize = 25
 	logoTextItem.TextStyle = fyne.TextStyle{
@@ -174,15 +197,15 @@ func main() {
 	})
 
 	infoBtn := widget.NewButtonWithIcon(t("Info"), theme.InfoIcon(), func() {
-		isSubmissionBlocked.setTrue()
-		isCloseBlocked.setTrue()
+		appSessionState.IsSubmissionBlocked.setTrue()
+		appSessionState.IsCloseBlocked.setTrue()
 		informationD := dialog.NewInformation(t("Information"),
 			fmt.Sprintf("%s\n%d - %s: %s\n%s: %s\n\n%s\n\n%s",
-				appName, time.Now().Year(), t("Version"), appVersion,
-				t("License"), "GNU Affero General Public License v3", appLinkToGitHub, t("InfoIndependence")), window)
+				appConfig.AppName, time.Now().Year(), t("Version"), appConfig.AppVersion,
+				t("License"), "GNU Affero General Public License v3", appConfig.AppLinkToGitHub, t("InfoIndependence")), window)
 		informationD.SetOnClosed(func() {
-			isSubmissionBlocked.setFalse()
-			isCloseBlocked.setFalse()
+			appSessionState.IsSubmissionBlocked.setFalse()
+			appSessionState.IsCloseBlocked.setFalse()
 		})
 		informationD.Show()
 	})
@@ -218,14 +241,14 @@ func main() {
 }
 
 func doInitialPreferenceSetup() {
-	application.Preferences().SetString(preferenceInstanceURL, "http://127.0.0.1:8000")
-	application.Preferences().SetString(preferenceUsername, "")
-	application.Preferences().SetString(preferencePassword, "")
-	application.Preferences().SetBool(preferenceBorderless, true)
-	application.Preferences().SetBool(preferenceCloseAfterAdd, true)
-	application.Preferences().SetBool(preferenceCheckAdd, true)
+	fyneApplication.Preferences().SetString(preferenceInstanceURL, "http://127.0.0.1:8000")
+	fyneApplication.Preferences().SetString(preferenceUsername, "")
+	fyneApplication.Preferences().SetString(preferencePassword, "")
+	fyneApplication.Preferences().SetBool(preferenceBorderless, true)
+	fyneApplication.Preferences().SetBool(preferenceCloseAfterAdd, true)
+	fyneApplication.Preferences().SetBool(preferenceCheckAdd, true)
 
-	application.Preferences().SetBool(preferenceFirstRun, false)
+	fyneApplication.Preferences().SetBool(preferenceFirstRun, false)
 }
 
 func initI18n() {
@@ -243,12 +266,12 @@ func initI18n() {
 	bundle := i18n.NewBundle(selectedLang)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.MustParseMessageFileBytes(langResource.StaticContent, langResource.StaticName)
-	localizer = i18n.NewLocalizer(bundle, selectedLang.String())
+	appConfig.Localizer = i18n.NewLocalizer(bundle, selectedLang.String())
 }
 
 // central method to translate strings, supports up to two format args
 func tWithArgs(s string, args interface{}) string {
-	localizeMessage, err := localizer.Localize(&i18n.LocalizeConfig{
+	localizeMessage, err := appConfig.Localizer.Localize(&i18n.LocalizeConfig{
 		MessageID:    s,
 		TemplateData: args,
 	})
@@ -266,7 +289,7 @@ func t(s string) string {
 	message := &i18n.Message{
 		ID: s,
 	}
-	localizeMessage, err := localizer.LocalizeMessage(message)
+	localizeMessage, err := appConfig.Localizer.LocalizeMessage(message)
 	if err != nil {
 		log.Printf("Cannot get message '%s'\n", err.Error())
 		return s
@@ -278,35 +301,35 @@ func t(s string) string {
 }
 
 func safeClose() {
-	if isCloseBlocked.isSet() {
+	if appSessionState.IsCloseBlocked.isSet() {
 		return
 	}
 	if len(strings.TrimSpace(inputEntryWidget.Text)) > 5 {
 		// lock submission
-		isCloseBlocked.setTrue()
-		isSubmissionBlocked.setTrue()
+		appSessionState.IsCloseBlocked.setTrue()
+		appSessionState.IsSubmissionBlocked.setTrue()
 		confirmD := dialog.NewConfirm(t("Cancel"), t("DoYouReallyWantToClose"), func(decision bool) {
 			if decision { // = yes
-				application.Quit()
+				fyneApplication.Quit()
 			}
 		}, window)
 		confirmD.SetOnClosed(func() {
-			isSubmissionBlocked.setFalse()
-			isCloseBlocked.setFalse()
+			appSessionState.IsSubmissionBlocked.setFalse()
+			appSessionState.IsCloseBlocked.setFalse()
 		})
 		confirmD.Show()
 	} else {
 		// close immediately if input is empty
-		application.Quit()
+		fyneApplication.Quit()
 	}
 }
 
 func disconnect() {
-	isConnected = false
+	appSessionState.IsConnected = false
 	log.Printf("Warn: No connection could be established!\n")
 	infoLabel.Text = t("NoConnectionPossible")
-	if connectionErr != nil {
-		infoLabel.Text += " " + connectionErr.Error()
+	if appSessionState.ConnectionErr != nil {
+		infoLabel.Text += " " + appSessionState.ConnectionErr.Error()
 	}
 	infoLabel.Refresh()
 }

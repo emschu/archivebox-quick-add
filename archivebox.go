@@ -43,11 +43,11 @@ func isURL(inputStr string) bool {
 }
 
 func doArchiveBoxLogin() {
-	pw := application.Preferences().StringWithFallback(preferencePassword, "")
-	username := application.Preferences().StringWithFallback(preferenceUsername, "")
+	pw := fyneApplication.Preferences().StringWithFallback(preferencePassword, "")
+	username := fyneApplication.Preferences().StringWithFallback(preferenceUsername, "")
 
 	buffer := bytes.NewBuffer([]byte(fmt.Sprintf("csrfmiddlewaretoken=%s&username=%s&password=%s&next=%%2F",
-		csrfMiddlewareToken, url.QueryEscape(username), url.QueryEscape(pw))))
+		appSessionState.CsrfMiddlewareToken, url.QueryEscape(username), url.QueryEscape(pw))))
 
 	request, err := buildPostRequest("/admin/login/?next=", buffer)
 
@@ -61,21 +61,21 @@ func doArchiveBoxLogin() {
 	if do.StatusCode != 302 {
 		// something went wrong
 		log.Printf("Problem with login! Got status %d\n", do.StatusCode)
-		sessionCookie = nil
+		appSessionState.SessionCookie = nil
 		return
 	}
 
 	for _, i := range do.Cookies() {
 		if i.Name == "sessionid" {
-			sessionCookie = i
+			appSessionState.SessionCookie = i
 			log.Printf("Session id is set successfully")
-			isConnected = true
+			appSessionState.IsConnected = true
 		}
 	}
 }
 
 func doArchiveBoxLogout() {
-	if sessionCookie == nil || csrfToken == nil {
+	if appSessionState.SessionCookie == nil || appSessionState.CsrfToken == nil {
 		// there was no login
 		return
 	}
@@ -105,11 +105,11 @@ func buildGetRequest(apiPath string) (*http.Request, error) {
 		panic(err)
 	}
 
-	if csrfToken != nil {
-		request.AddCookie(csrfToken)
+	if appSessionState.CsrfToken != nil {
+		request.AddCookie(appSessionState.CsrfToken)
 	}
-	if sessionCookie != nil {
-		request.AddCookie(sessionCookie)
+	if appSessionState.SessionCookie != nil {
+		request.AddCookie(appSessionState.SessionCookie)
 	}
 	return request, err
 }
@@ -122,13 +122,13 @@ func buildPostRequest(apiPath string, requestData *bytes.Buffer) (*http.Request,
 	request.Header.Set("Cache-Control", "max-age=0, no-cache, no-store, must-revalidate, private")
 	request.Header.Set("Host", archiveBoxURL)
 	request.Header.Set("Origin", archiveBoxURL)
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Set("Content-Type", "fyneApplication/x-www-form-urlencoded")
 	request.Header.Set("Content-Length", "0")
-	if csrfToken != nil {
-		request.AddCookie(csrfToken)
+	if appSessionState.CsrfToken != nil {
+		request.AddCookie(appSessionState.CsrfToken)
 	}
-	if sessionCookie != nil {
-		request.AddCookie(sessionCookie)
+	if appSessionState.SessionCookie != nil {
+		request.AddCookie(appSessionState.SessionCookie)
 	}
 
 	return request, nil
@@ -136,19 +136,19 @@ func buildPostRequest(apiPath string, requestData *bytes.Buffer) (*http.Request,
 
 func setupArchiveBoxConnection() {
 	if len(strings.TrimSpace(archiveBoxURL)) == 0 {
-		connectionErr = fmt.Errorf("invalid empty url to archivebox")
+		appSessionState.ConnectionErr = fmt.Errorf("invalid empty url to archivebox")
 		disconnect()
 		return
 	}
 	if !isURL(archiveBoxURL) {
-		connectionErr = fmt.Errorf("url does not start with 'http[s]://'")
+		appSessionState.ConnectionErr = fmt.Errorf("url does not start with 'http[s]://'")
 		disconnect()
 		return
 	}
 
 	adminResp, err := httpClient.Get(fmt.Sprintf("%s/admin/login", archiveBoxURL))
 	if err != nil {
-		connectionErr = err
+		appSessionState.ConnectionErr = err
 		disconnect()
 		return
 	}
@@ -157,7 +157,7 @@ func setupArchiveBoxConnection() {
 	for _, c := range adminResp.Cookies() {
 		if c.Name == "csrftoken" {
 			if len(c.Value) > 0 {
-				csrfToken = c
+				appSessionState.CsrfToken = c
 			}
 			if isDebug {
 				log.Printf("csrf token: %v\n", c.Value)
@@ -169,24 +169,24 @@ func setupArchiveBoxConnection() {
 	if err != nil {
 		csrfErrMsg := "Cannot find csrfmiddlewaretoken!"
 		log.Println(csrfErrMsg)
-		connectionErr = fmt.Errorf(csrfErrMsg)
+		appSessionState.ConnectionErr = fmt.Errorf(csrfErrMsg)
 		disconnect()
 		return
 	}
 	if len(strings.TrimSpace(string(all))) > 0 {
 		match := pattern.FindStringSubmatch(string(all))
 		if len(match) > 1 && len(match[1]) > 0 {
-			csrfMiddlewareToken = strings.TrimSpace(match[1])
+			appSessionState.CsrfMiddlewareToken = strings.TrimSpace(match[1])
 		} else {
 			log.Printf("Problem finding csrfmiddlewaretoken!\n")
 		}
 	}
 	if isDebug {
-		log.Printf("csrfmiddlewaretoken: %s\n", csrfMiddlewareToken)
+		log.Printf("csrfmiddlewaretoken: %s\n", appSessionState.CsrfMiddlewareToken)
 	}
 
-	if sessionCookie == nil {
-		if len(csrfMiddlewareToken) > 0 && csrfToken != nil {
+	if appSessionState.SessionCookie == nil {
+		if len(appSessionState.CsrfMiddlewareToken) > 0 && appSessionState.CsrfToken != nil {
 			doArchiveBoxLogin()
 		} else {
 			log.Printf("Cannot start login")
@@ -196,7 +196,7 @@ func setupArchiveBoxConnection() {
 
 func isURLAlreadyArchived(urlToCheck string) bool {
 	urlToCheck = strings.TrimSpace(urlToCheck)
-	if !isConnected {
+	if !appSessionState.IsConnected {
 		return false
 	}
 	// validate url at first
@@ -212,15 +212,13 @@ func isURLAlreadyArchived(urlToCheck string) bool {
 		return false
 	}
 
-	// use a higher timeout value to wait for search results
-	newHTTPClient := http.Client{Timeout: 30 * time.Second}
-	do, err := newHTTPClient.Do(request)
+	// use a higher another client timeout value to wait for search results
+	do, err := archiveSearchHTTPClient.Do(request)
 	if err != nil {
 		log.Printf("Problem fetching snapshot search page: %v\n", err)
 		return false
 	}
 	defer do.Body.Close()
-	defer newHTTPClient.CloseIdleConnections()
 
 	content, err := ioutil.ReadAll(do.Body)
 	if err != nil {
@@ -239,7 +237,7 @@ func isURLAlreadyArchived(urlToCheck string) bool {
 func sendURLToArchiveBox(urlToSave string) (bool, error) {
 	setupArchiveBoxConnection()
 	urlToSave = strings.TrimSpace(urlToSave)
-	if !isConnected {
+	if !appSessionState.IsConnected {
 		return false, fmt.Errorf(t("NoConnectionToInstance"))
 	}
 
@@ -252,7 +250,7 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 	}
 
 	buffer := bytes.NewBuffer([]byte(fmt.Sprintf("csrfmiddlewaretoken=%s&url=%s&parser=auto&tag=&depth=0",
-		csrfMiddlewareToken, url.QueryEscape(urlToSave))))
+		appSessionState.CsrfMiddlewareToken, url.QueryEscape(urlToSave))))
 	request, err := buildPostRequest("/add/", buffer)
 	if err != nil {
 		panic(err)
@@ -282,7 +280,7 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 // should be non-blocking to be safe for ui, handles validation of input
 func archiveURL(urlInput string) {
 	urlInput = strings.TrimSpace(urlInput)
-	if isSubmissionBlocked.isSet() {
+	if appSessionState.IsSubmissionBlocked.isSet() {
 		if isDebug {
 			log.Printf("Blocked submission of URL '%s'\n", urlInput)
 		}
@@ -296,8 +294,8 @@ func archiveURL(urlInput string) {
 		hasWorked, err := sendURLToArchiveBox(urlInput)
 		if hasWorked {
 			// all went fine!
-			closeAppPref := application.Preferences().BoolWithFallback(preferenceCloseAfterAdd, false)
-			checkAfterAddPref := application.Preferences().BoolWithFallback(preferenceCheckAdd, false)
+			closeAppPref := fyneApplication.Preferences().BoolWithFallback(preferenceCloseAfterAdd, false)
+			checkAfterAddPref := fyneApplication.Preferences().BoolWithFallback(preferenceCheckAdd, false)
 			if checkAfterAddPref {
 				if isURLAlreadyArchived(urlInput) {
 					var urlString string
@@ -305,37 +303,37 @@ func archiveURL(urlInput string) {
 					if err != nil {
 						urlString = urlInput
 					}
-					application.SendNotification(&fyne.Notification{
+					fyneApplication.SendNotification(&fyne.Notification{
 						Title: tWithArgs("NotificationTitle", struct {
 							APP_NAME string
-						}{APP_NAME: appName}),
+						}{APP_NAME: appConfig.AppName}),
 						Content: tWithArgs("URLHasBeenAdded", struct {
 							URL string
 						}{URL: urlString}),
 					})
 					if closeAppPref {
-						application.Quit()
+						fyneApplication.Quit()
 					}
 					inputEntryWidget.SetText("")
 				} else {
-					application.SendNotification(&fyne.Notification{
+					fyneApplication.SendNotification(&fyne.Notification{
 						Title: tWithArgs("NotificationTitle", struct {
 							APP_NAME string
-						}{APP_NAME: appName}),
+						}{APP_NAME: appConfig.AppName}),
 						Content: t("URLAddingCouldNotBeChecked"),
 					})
 				}
 			} else {
-				application.SendNotification(&fyne.Notification{
+				fyneApplication.SendNotification(&fyne.Notification{
 					Title: tWithArgs("NotificationTitle", struct {
 						APP_NAME string
-					}{APP_NAME: appName}),
+					}{APP_NAME: appConfig.AppName}),
 					Content: tWithArgs("URLHasBeenSent", struct {
 						URL string
 					}{URL: urlInput}),
 				})
 				if closeAppPref {
-					application.Quit()
+					fyneApplication.Quit()
 				}
 				inputEntryWidget.SetText("")
 			}

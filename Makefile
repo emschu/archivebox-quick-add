@@ -2,8 +2,8 @@ SHELL := /bin/bash
 
 # go requirements: fyne + fyne-cross
 
-APP_VERSION_STR = "v1-3"
-APP_VERSION_DOT := "1.3"
+APP_VERSION_STR = "v1-4"
+APP_VERSION_DOT := "1.4"
 
 GO := GO111MODULE=on CGO_ENABLED=1 go
 GO_PATH = $(shell $(GO) env GOPATH)
@@ -59,7 +59,7 @@ release: clean ## release build for all platforms
 
 .PHONY: version
 version: ## populate the current version defined in this make file
-	sed -r -i 's/var appVersion = "([0-9]+.[0-9]+)"/var appVersion = "'$(APP_VERSION_DOT)'"/g' main.go
+	sed -r -i 's/AppVersion:      "([0-9]+.[0-9]+)"/AppVersion:      "'$(APP_VERSION_DOT)'"/g' main.go
 	sed -r -i 's/Version: ([0-9]+.[0-9]+)/Version: '$(APP_VERSION_DOT)'/g' README.md
 
 .PHONY: clean

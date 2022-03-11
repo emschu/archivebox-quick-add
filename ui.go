@@ -45,18 +45,18 @@ func pasteClipboard() {
 func showSettingsDialog() {
 	var items []*widget.FormItem
 	instanceURLEntry := widget.NewEntry()
-	instanceURLEntry.Text = application.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
+	instanceURLEntry.Text = fyneApplication.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
 	instanceURLEntry.Validator = validation.NewRegexp("^http[s]?://.*:[0-9]{1,5}$", "invalid URL")
 	items = append(items, widget.NewFormItem(t("ArchiveBoxURL"), instanceURLEntry))
 
 	userNameEntry := widget.NewEntry()
-	userNameEntry.Text = application.Preferences().StringWithFallback(preferenceUsername, "")
+	userNameEntry.Text = fyneApplication.Preferences().StringWithFallback(preferenceUsername, "")
 	userNameEntry.Validator = validation.NewRegexp("^\\s*\\S{2,}\\s*$", "too short")
 	items = append(items, widget.NewFormItem(t("Username"), userNameEntry))
 
 	passwordEntry := widget.NewPasswordEntry()
 	passwordEntry.ActionItem = nil
-	currentPw := application.Preferences().StringWithFallback(preferencePassword, "")
+	currentPw := fyneApplication.Preferences().StringWithFallback(preferencePassword, "")
 	if len(currentPw) > 0 {
 		passwordEntry.SetPlaceHolder(t("AlreadySet"))
 		passwordEntry.OnChanged = func(s string) {
@@ -72,17 +72,17 @@ func showSettingsDialog() {
 	items = append(items, widget.NewFormItem(t("Password"), passwordEntry))
 
 	borderlessCheckbox := widget.NewCheck("", func(b bool) {})
-	isBorderless := application.Preferences().BoolWithFallback(preferenceBorderless, true)
+	isBorderless := fyneApplication.Preferences().BoolWithFallback(preferenceBorderless, true)
 	borderlessCheckbox.Checked = isBorderless
 	items = append(items, widget.NewFormItem(t("BorderlessWindow"), borderlessCheckbox))
 
 	linkAddCheckCheckbox := widget.NewCheck("", func(b bool) {})
-	isAddChecked := application.Preferences().BoolWithFallback(preferenceCheckAdd, false)
+	isAddChecked := fyneApplication.Preferences().BoolWithFallback(preferenceCheckAdd, false)
 	linkAddCheckCheckbox.Checked = isAddChecked
 	items = append(items, widget.NewFormItem(t("CheckIfURLWasAdded"), linkAddCheckCheckbox))
 
 	closeAfterAddCheckbox := widget.NewCheck("", func(b bool) {})
-	isCloseAfterAdd := application.Preferences().BoolWithFallback(preferenceCloseAfterAdd, false)
+	isCloseAfterAdd := fyneApplication.Preferences().BoolWithFallback(preferenceCloseAfterAdd, false)
 	closeAfterAddCheckbox.Checked = isCloseAfterAdd
 	items = append(items, widget.NewFormItem(t("CloseAppAfterArchiving"), closeAfterAddCheckbox))
 
@@ -93,20 +93,20 @@ func showSettingsDialog() {
 	})
 	items = append(items, widget.NewFormItem(t("Appearance"), appearanceBtn))
 
-	isCloseBlocked.setTrue()
-	isSubmissionBlocked.setTrue()
+	appSessionState.IsCloseBlocked.setTrue()
+	appSessionState.IsSubmissionBlocked.setTrue()
 	settingsDialog := dialog.NewForm(t("Settings"), t("Apply"), t("Cancel"), items, func(b bool) {
 		if b {
 			log.Printf("Updating preferences! \n")
-			application.Preferences().SetString(preferenceInstanceURL, strings.TrimSpace(instanceURLEntry.Text))
-			application.Preferences().SetString(preferenceUsername, strings.TrimSpace(userNameEntry.Text))
+			fyneApplication.Preferences().SetString(preferenceInstanceURL, strings.TrimSpace(instanceURLEntry.Text))
+			fyneApplication.Preferences().SetString(preferenceUsername, strings.TrimSpace(userNameEntry.Text))
 			inputPw := strings.TrimSpace(passwordEntry.Text)
 			if len(inputPw) > 0 {
-				application.Preferences().SetString(preferencePassword, inputPw)
+				fyneApplication.Preferences().SetString(preferencePassword, inputPw)
 			}
-			application.Preferences().SetBool(preferenceBorderless, borderlessCheckbox.Checked)
-			application.Preferences().SetBool(preferenceCheckAdd, linkAddCheckCheckbox.Checked)
-			application.Preferences().SetBool(preferenceCloseAfterAdd, closeAfterAddCheckbox.Checked)
+			fyneApplication.Preferences().SetBool(preferenceBorderless, borderlessCheckbox.Checked)
+			fyneApplication.Preferences().SetBool(preferenceCheckAdd, linkAddCheckCheckbox.Checked)
+			fyneApplication.Preferences().SetBool(preferenceCloseAfterAdd, closeAfterAddCheckbox.Checked)
 		}
 	}, window)
 
@@ -120,8 +120,8 @@ func showSettingsDialog() {
 	})
 	settingsDialog.SetOnClosed(func() {
 		// restore original main window settings
-		isCloseBlocked.setFalse()
-		isSubmissionBlocked.setFalse()
+		appSessionState.IsCloseBlocked.setFalse()
+		appSessionState.IsSubmissionBlocked.setFalse()
 		window.Resize(windowSize)
 	})
 	settingsDialog.Show()
@@ -134,7 +134,7 @@ func showFyneSettingsWindow() {
 	isAppearanceWindowOpen = true
 	fyneSettings := settings.NewSettings()
 
-	settingsWindow := application.NewWindow(t("AppearanceSettings"))
+	settingsWindow := fyneApplication.NewWindow(t("AppearanceSettings"))
 	settingsWindow.SetOnClosed(func() {
 		isAppearanceWindowOpen = false
 	})
