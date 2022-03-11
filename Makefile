@@ -2,8 +2,8 @@ SHELL := /bin/bash
 
 # go requirements: fyne + fyne-cross
 
-APP_VERSION_STR = "v1-4"
-APP_VERSION_DOT := "1.4"
+APP_VERSION_STR = "v1-5"
+APP_VERSION_DOT := "1.5"
 
 GO := GO111MODULE=on CGO_ENABLED=1 go
 GO_PATH = $(shell $(GO) env GOPATH)
@@ -18,7 +18,6 @@ help: ## show this help
 
 .PHONY: build
 build: bundle ## build project without development mode
-	mkdir -p bin
 	$(GO) build -ldflags "-s -w"
 
 .PHONY: bundle

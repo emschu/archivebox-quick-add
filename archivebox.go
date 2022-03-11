@@ -38,7 +38,9 @@ func isURL(inputStr string) bool {
 	if parse.Scheme == "http" || parse.Scheme == "https" {
 		return true
 	}
-	log.Printf("Invalid url: %s\n", inputStr)
+	if isDebug {
+		log.Printf("Invalid url: %s\n", inputStr)
+	}
 	return false
 }
 
@@ -46,8 +48,9 @@ func doArchiveBoxLogin() {
 	pw := fyneApplication.Preferences().StringWithFallback(preferencePassword, "")
 	username := fyneApplication.Preferences().StringWithFallback(preferenceUsername, "")
 
-	buffer := bytes.NewBuffer([]byte(fmt.Sprintf("csrfmiddlewaretoken=%s&username=%s&password=%s&next=%%2F",
-		appSessionState.CsrfMiddlewareToken, url.QueryEscape(username), url.QueryEscape(pw))))
+	paramStr := fmt.Sprintf("csrfmiddlewaretoken=%s&username=%s&password=%s&next=%%2F",
+		appSessionState.CsrfMiddlewareToken, url.QueryEscape(username), url.QueryEscape(pw))
+	buffer := bytes.NewBuffer([]byte(paramStr))
 
 	request, err := buildPostRequest("/admin/login/?next=", buffer)
 
@@ -70,6 +73,7 @@ func doArchiveBoxLogin() {
 			appSessionState.SessionCookie = i
 			log.Printf("Session id is set successfully")
 			appSessionState.IsConnected = true
+			break
 		}
 	}
 }
@@ -100,7 +104,7 @@ func doArchiveBoxLogout() {
 }
 
 func buildGetRequest(apiPath string) (*http.Request, error) {
-	request, err := http.NewRequest("GET", fmt.Sprintf("%s%s", archiveBoxURL, apiPath), nil)
+	request, err := http.NewRequest("GET", fmt.Sprintf("%s%s", appConfig.InstanceURL, apiPath), nil)
 	if err != nil {
 		panic(err)
 	}
@@ -115,14 +119,14 @@ func buildGetRequest(apiPath string) (*http.Request, error) {
 }
 
 func buildPostRequest(apiPath string, requestData *bytes.Buffer) (*http.Request, error) {
-	request, err := http.NewRequest("POST", fmt.Sprintf("%s%s", archiveBoxURL, apiPath), requestData)
+	request, err := http.NewRequest("POST", fmt.Sprintf("%s%s", appConfig.InstanceURL, apiPath), requestData)
 	if err != nil {
 		panic(err)
 	}
 	request.Header.Set("Cache-Control", "max-age=0, no-cache, no-store, must-revalidate, private")
-	request.Header.Set("Host", archiveBoxURL)
-	request.Header.Set("Origin", archiveBoxURL)
-	request.Header.Set("Content-Type", "fyneApplication/x-www-form-urlencoded")
+	request.Header.Set("Host", appConfig.InstanceURL)
+	request.Header.Set("Origin", appConfig.InstanceURL)
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	request.Header.Set("Content-Length", "0")
 	if appSessionState.CsrfToken != nil {
 		request.AddCookie(appSessionState.CsrfToken)
@@ -135,21 +139,21 @@ func buildPostRequest(apiPath string, requestData *bytes.Buffer) (*http.Request,
 }
 
 func setupArchiveBoxConnection() {
-	if len(strings.TrimSpace(archiveBoxURL)) == 0 {
+	if len(strings.TrimSpace(appConfig.InstanceURL)) == 0 {
 		appSessionState.ConnectionErr = fmt.Errorf("invalid empty url to archivebox")
-		disconnect()
+		appConfig.disconnect()
 		return
 	}
-	if !isURL(archiveBoxURL) {
+	if !isURL(appConfig.InstanceURL) {
 		appSessionState.ConnectionErr = fmt.Errorf("url does not start with 'http[s]://'")
-		disconnect()
+		appConfig.disconnect()
 		return
 	}
 
-	adminResp, err := httpClient.Get(fmt.Sprintf("%s/admin/login", archiveBoxURL))
+	adminResp, err := httpClient.Get(fmt.Sprintf("%s/admin/login", appConfig.InstanceURL))
 	if err != nil {
 		appSessionState.ConnectionErr = err
-		disconnect()
+		appConfig.disconnect()
 		return
 	}
 	defer adminResp.Body.Close()
@@ -170,7 +174,7 @@ func setupArchiveBoxConnection() {
 		csrfErrMsg := "Cannot find csrfmiddlewaretoken!"
 		log.Println(csrfErrMsg)
 		appSessionState.ConnectionErr = fmt.Errorf(csrfErrMsg)
-		disconnect()
+		appConfig.disconnect()
 		return
 	}
 	if len(strings.TrimSpace(string(all))) > 0 {
@@ -268,7 +272,7 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 		}
 		msg := tWithArgs("ProblemCallingArchiveBox", struct {
 			URL string
-		}{URL: archiveBoxURL})
+		}{URL: appConfig.InstanceURL})
 		log.Printf("%s\n", msg)
 		return false, fmt.Errorf(msg)
 	}
@@ -279,6 +283,7 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 
 // should be non-blocking to be safe for ui, handles validation of input
 func archiveURL(urlInput string) {
+	setupArchiveBoxConnection()
 	urlInput = strings.TrimSpace(urlInput)
 	if appSessionState.IsSubmissionBlocked.isSet() {
 		if isDebug {

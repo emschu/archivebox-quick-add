@@ -45,13 +45,10 @@ import (
 var httpClient = &http.Client{
 	Timeout: 10 * time.Second,
 }
+
 var archiveSearchHTTPClient = &http.Client{
 	Timeout: 30 * time.Second,
 }
-
-// preferences
-var archiveBoxURL string // url to instance
-// TODO: replace to single function
 
 var fyneApplication fyne.App
 var window fyne.Window
@@ -67,14 +64,17 @@ var appSessionState sessionState
 
 var isDebug = false
 
+// all app-wide vars besides the archivebox session state belong here
 type applicationConfiguration struct {
 	AppID           string
 	AppName         string
 	AppVersion      string
 	AppLinkToGitHub string
+	InstanceURL     string
 	Localizer       *i18n.Localizer
 }
 
+// store archivebox session state, e.g. cookies
 type sessionState struct {
 	IsConnected         bool
 	CsrfToken           *http.Cookie
@@ -99,25 +99,28 @@ func main() {
 	appConfig = applicationConfiguration{
 		AppID:           "org.archivebox.go-quick-add",
 		AppName:         "ArchiveBox Quick-Add",
-		AppVersion:      "1.4",
+		AppVersion:      "1.5",
 		AppLinkToGitHub: "https://github.com/emschu/archivebox-quick-add",
 	}
+
 	appSessionState = sessionState{}
 	appSessionState.IsConnected = false
 	appSessionState.IsSubmissionBlocked = *newAtomicBool(false)
 	appSessionState.IsCloseBlocked = *newAtomicBool(false)
-	initI18n()
+	appConfig.initI18n()
 
 	fyneApplication = app.NewWithID(appConfig.AppID)
 	fyneApplication.SetIcon(resourceIconPng)
 
+	// load archive box instance url
+	appConfig.InstanceURL = fyneApplication.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
+
 	isFirstRun := fyneApplication.Preferences().BoolWithFallback(preferenceFirstRun, true)
 	if isFirstRun {
 		// initial preference setup
-		doInitialPreferenceSetup()
+		appConfig.doInitialPreferenceSetup()
 	}
 
-	archiveBoxURL = fyneApplication.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
 	isSplashScreen := fyneApplication.Preferences().BoolWithFallback(preferenceBorderless, true)
 	drv, ok := fyne.CurrentApp().Driver().(desktop.Driver)
 	if ok && isSplashScreen {
@@ -133,7 +136,7 @@ func main() {
 	window.SetPadded(true)
 	window.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
 		if k.Name == fyne.KeyEscape {
-			safeClose()
+			appConfig.safeClose()
 		}
 		if k.Name == fyne.KeyReturn {
 			archiveURL(inputEntryWidget.Text)
@@ -165,13 +168,13 @@ func main() {
 		doArchiveBoxLogout()
 	}()
 
-	parsedURL, err := url.Parse(archiveBoxURL)
+	parsedURL, err := url.Parse(appConfig.InstanceURL)
 	var instanceLink fyne.Widget
 	if err != nil {
 		log.Printf("No valid url to archivebox instance\n")
 		instanceLink = widget.NewLabel("")
 	} else {
-		instanceLink = widget.NewHyperlink(archiveBoxURL, parsedURL)
+		instanceLink = widget.NewHyperlink(appConfig.InstanceURL, parsedURL)
 	}
 
 	inputEntryWidget = newURLInputField()
@@ -180,7 +183,7 @@ func main() {
 
 	addToArchiveBtn = widget.NewButtonWithIcon(t("AddToArchive"), theme.ContentAddIcon(), func() {})
 	cancelBtn := widget.NewButtonWithIcon(t("Close"), theme.CancelIcon(), func() {
-		safeClose()
+		appConfig.safeClose()
 	})
 	clipBoardBtn := widget.NewButtonWithIcon(t("PasteClipboard"), theme.ContentPasteIcon(), func() {
 		pasteClipboard()
@@ -240,7 +243,7 @@ func main() {
 	window.ShowAndRun()
 }
 
-func doInitialPreferenceSetup() {
+func (*applicationConfiguration) doInitialPreferenceSetup() {
 	fyneApplication.Preferences().SetString(preferenceInstanceURL, "http://127.0.0.1:8000")
 	fyneApplication.Preferences().SetString(preferenceUsername, "")
 	fyneApplication.Preferences().SetString(preferencePassword, "")
@@ -251,7 +254,7 @@ func doInitialPreferenceSetup() {
 	fyneApplication.Preferences().SetBool(preferenceFirstRun, false)
 }
 
-func initI18n() {
+func (*applicationConfiguration) initI18n() {
 	var selectedLang = language.English
 	var langResource = resourceEnJson
 
@@ -300,7 +303,7 @@ func t(s string) string {
 	return localizeMessage
 }
 
-func safeClose() {
+func (*applicationConfiguration) safeClose() {
 	if appSessionState.IsCloseBlocked.isSet() {
 		return
 	}
@@ -324,7 +327,7 @@ func safeClose() {
 	}
 }
 
-func disconnect() {
+func (*applicationConfiguration) disconnect() {
 	appSessionState.IsConnected = false
 	log.Printf("Warn: No connection could be established!\n")
 	infoLabel.Text = t("NoConnectionPossible")
