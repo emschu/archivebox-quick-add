@@ -168,7 +168,7 @@ func newURLInputField() *URLInputField {
 func (s *URLInputField) TypedShortcut(shortcut fyne.Shortcut) {
 	log.Printf("%v\n", shortcut.ShortcutName())
 	if shortcut.ShortcutName() == "CustomDesktop:Control+Return" {
-		saveURL(inputEntryWidget.Text)
+		archiveURL(inputEntryWidget.Text)
 	} else {
 		s.Entry.TypedShortcut(shortcut)
 	}

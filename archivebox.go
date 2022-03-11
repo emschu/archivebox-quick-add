@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -195,7 +194,16 @@ func setupArchiveBoxConnection() {
 	}
 }
 
-func isURLPresent(urlToCheck string) bool {
+func isURLAlreadyArchived(urlToCheck string) bool {
+	urlToCheck = strings.TrimSpace(urlToCheck)
+	if !isConnected {
+		return false
+	}
+	// validate url at first
+	if len(urlToCheck) < 5 || !isURL(urlToCheck) {
+		return false
+	}
+
 	snapshotSearchPath := fmt.Sprintf("/admin/core/snapshot/?q=%s", url.QueryEscape(urlToCheck))
 
 	request, err := buildGetRequest(snapshotSearchPath)
@@ -204,12 +212,15 @@ func isURLPresent(urlToCheck string) bool {
 		return false
 	}
 
-	do, err := httpClient.Do(request)
+	// use a higher timeout value to wait for search results
+	newHTTPClient := http.Client{Timeout: 30 * time.Second}
+	do, err := newHTTPClient.Do(request)
 	if err != nil {
-		log.Printf("Problem fetching snapshot search page\n")
+		log.Printf("Problem fetching snapshot search page: %v\n", err)
 		return false
 	}
 	defer do.Body.Close()
+	defer newHTTPClient.CloseIdleConnections()
 
 	content, err := ioutil.ReadAll(do.Body)
 	if err != nil {
@@ -217,11 +228,12 @@ func isURLPresent(urlToCheck string) bool {
 		return false
 	}
 
-	pattern := regexp.MustCompile("name=\"q\" value=\"" + urlToCheck + "\"")
+	// check if result size is zero
+	pattern := regexp.MustCompile("<span class=\"small quiet\">0 results \\(<a href=\"?\">[0-9]+ total</a>\\)</span>")
 	if pattern.Match(content) {
-		return true
+		return false
 	}
-	return false
+	return true
 }
 
 func sendURLToArchiveBox(urlToSave string) (bool, error) {
@@ -253,7 +265,8 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 	do, err := transport.RoundTrip(request)
 	if err != nil {
 		if strings.HasSuffix(err.Error(), "timeout awaiting response headers") {
-			return false, nil
+			// this is expected
+			return true, nil
 		}
 		msg := tWithArgs("ProblemCallingArchiveBox", struct {
 			URL string
@@ -262,21 +275,12 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 		return false, fmt.Errorf(msg)
 	}
 	defer do.Body.Close()
-	log.Printf("entry add response status: %v\n", do.Status)
-
-	// there is only 200...
-	if do.StatusCode != 200 {
-		// something went wrong
-		log.Printf("Problem with add! Got status %d\n", do.StatusCode)
-		return false, fmt.Errorf(tWithArgs("UnexpectedStatusCode", struct {
-			Code string
-		}{Code: strconv.Itoa(do.StatusCode)}))
-	}
+	log.Printf("entry add response status: %v\n", do.StatusCode)
 	return true, nil
 }
 
 // should be non-blocking to be safe for ui, handles validation of input
-func saveURL(urlInput string) {
+func archiveURL(urlInput string) {
 	urlInput = strings.TrimSpace(urlInput)
 	if isSubmissionBlocked.isSet() {
 		if isDebug {
@@ -285,7 +289,7 @@ func saveURL(urlInput string) {
 		return
 	}
 	infoLabel.Text = ""
-	log.Printf("Started add event for url '%s'\n", urlInput)
+	log.Printf("Started URL archiving for url '%s'\n", urlInput)
 	go func() {
 		inputEntryWidget.Disable()
 		addToArchiveBtn.Disable()
@@ -295,7 +299,7 @@ func saveURL(urlInput string) {
 			closeAppPref := application.Preferences().BoolWithFallback(preferenceCloseAfterAdd, false)
 			checkAfterAddPref := application.Preferences().BoolWithFallback(preferenceCheckAdd, false)
 			if checkAfterAddPref {
-				if isURLPresent(urlInput) {
+				if isURLAlreadyArchived(urlInput) {
 					var urlString string
 					urlString, err = url.QueryUnescape(urlInput)
 					if err != nil {
@@ -340,8 +344,6 @@ func saveURL(urlInput string) {
 			infoLabel.Text = tWithArgs("ProblemAddingURL", struct {
 				ERROR string
 			}{ERROR: err.Error()})
-		} else {
-			infoLabel.Text = t("UnknownProblemAddingURL")
 		}
 		infoLabel.Refresh()
 		inputEntryWidget.Enable()
@@ -351,5 +353,5 @@ func saveURL(urlInput string) {
 		window.Resize(windowSize)
 	}()
 	infoLabel.Refresh()
-	log.Println("Finished add event")
+	log.Println("Finished URL archiving process")
 }

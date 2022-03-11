@@ -113,7 +113,7 @@ func main() {
 			safeClose()
 		}
 		if k.Name == fyne.KeyReturn {
-			saveURL(inputEntryWidget.Text)
+			archiveURL(inputEntryWidget.Text)
 		}
 	})
 
@@ -163,10 +163,10 @@ func main() {
 		pasteClipboard()
 	})
 	inputEntryWidget.OnSubmitted = func(s string) {
-		saveURL(s)
+		archiveURL(s)
 	}
 	addToArchiveBtn.OnTapped = func() {
-		saveURL(inputEntryWidget.Text)
+		archiveURL(inputEntryWidget.Text)
 	}
 
 	settingsBtn := widget.NewButtonWithIcon(t("Settings"), theme.SettingsIcon(), func() {
