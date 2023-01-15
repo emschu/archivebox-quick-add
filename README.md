@@ -4,7 +4,7 @@
 [ArchiveBox](https://github.com/ArchiveBox/ArchiveBox/) instance in the background and without interrupting your current
 work.**
 
-Version: 1.6
+Version: 1.7
 
 ![App Logo](./Icon.png)
 
@@ -36,12 +36,11 @@ submit a link should work in general, but this is not how it should be done with
 ## Install, Build and Run
 
 ```console
-go get -u github.com/emschu/archivebox-quick-add
-
-OR: fyne get github.com/emschu/archivebox-quick-add
-
-go build .
-go run .
+$ go install github.com/emschu/archivebox-quick-add@latest
+```
+OR:
+```
+$ fyne get github.com/emschu/archivebox-quick-add
 ```
 
 Current language support: English and German. Feel free to translate the app and submit a PR!
