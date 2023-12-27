@@ -23,7 +23,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
 
       - name: Install libraries
-        run: apt install gcc libgl1-mesa-dev xorg-dev
+        run: sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
 
       - name: Make setup
         run: make setup
