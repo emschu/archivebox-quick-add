@@ -1,0 +1,32 @@
+name: OERC-Build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+
+jobs:
+  oerc-build:
+    name: Project Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [ '1.20' ]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Install libraries
+        run: sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev
+
+      - name: Make setup
+        run: make setup
+
+      - name: Make package
+        run: make package

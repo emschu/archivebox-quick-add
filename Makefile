@@ -2,8 +2,8 @@ SHELL := /bin/bash
 
 # go requirements: fyne + fyne-cross
 
-APP_VERSION_STR = "v1-7"
-APP_VERSION_DOT := "1.7"
+APP_VERSION_STR = "v1-8"
+APP_VERSION_DOT := "1.8"
 
 GO := GO111MODULE=on CGO_ENABLED=1 go
 GO_PATH = $(shell $(GO) env GOPATH)
@@ -15,6 +15,10 @@ all: help
 .PHONY: help
 help: ## show this help
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
+
+.PHONY: setup
+setup: ## setup project tools
+	$(GO) install fyne.io/fyne/v2/cmd/fyne@latest
 
 .PHONY: build
 build: bundle ## build project without development mode
@@ -32,7 +36,7 @@ bundle: ## bundle resources
 
 .PHONY: package
 package: clean build ## packages the application on the local platform
-	$(GO_PATH)/bin/fyne package -appVersion '1.0' -release
+	$(GO_PATH)/bin/fyne package -appVersion $(APP_VERSION_DOT) -release
 
 .PHONY: release
 release: clean ## release build for all platforms
