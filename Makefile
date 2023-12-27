@@ -2,8 +2,8 @@ SHELL := /bin/bash
 
 # go requirements: fyne + fyne-cross
 
-APP_VERSION_STR = "v1-7"
-APP_VERSION_DOT := "1.7"
+APP_VERSION_STR = "v1-8"
+APP_VERSION_DOT := "1.8"
 
 GO := GO111MODULE=on CGO_ENABLED=1 go
 GO_PATH = $(shell $(GO) env GOPATH)
@@ -32,7 +32,7 @@ bundle: ## bundle resources
 
 .PHONY: package
 package: clean build ## packages the application on the local platform
-	$(GO_PATH)/bin/fyne package -appVersion '1.0' -release
+	$(GO_PATH)/bin/fyne package -appVersion '$(APP_VERSION_DOT)' -release
 
 .PHONY: release
 release: clean ## release build for all platforms
