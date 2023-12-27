@@ -36,7 +36,7 @@ bundle: ## bundle resources
 
 .PHONY: package
 package: clean build ## packages the application on the local platform
-	$(GO_PATH)/bin/fyne package -appVersion '$(APP_VERSION_DOT)' -release
+	$(GO_PATH)/bin/fyne package -appVersion $(APP_VERSION_DOT) -release
 
 .PHONY: release
 release: clean ## release build for all platforms
