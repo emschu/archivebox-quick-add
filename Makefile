@@ -16,6 +16,10 @@ all: help
 help: ## show this help
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
+.PHONY: setup
+setup: ## setup project tools
+	$(GO) install fyne.io/fyne/v2/cmd/fyne@latest
+
 .PHONY: build
 build: bundle ## build project without development mode
 	$(GO) build -ldflags "-s -w"

@@ -22,5 +22,8 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Build App
+      - name: Make setup
+        run: make setup
+
+      - name: Make package
         run: make package
