@@ -51,7 +51,7 @@ var archiveSearchHTTPClient = &http.Client{
 
 var fyneApplication fyne.App
 var window fyne.Window
-var windowSize = fyne.Size{600, 200}
+var windowSize = fyne.Size{Width: 600, Height: 200}
 
 // widgets
 var inputEntryWidget *URLInputField
@@ -98,7 +98,7 @@ func main() {
 	appConfig = applicationConfiguration{
 		AppID:           "org.archivebox.go-quick-add",
 		AppName:         "ArchiveBox Quick-Add",
-		AppVersion:      "1.8",
+		AppVersion:      "1.9",
 		AppLinkToGitHub: "https://github.com/emschu/archivebox-quick-add",
 	}
 
@@ -132,7 +132,7 @@ func main() {
 	window.SetFixedSize(false)
 	window.SetFullScreen(false)
 	window.SetMaster()
-	window.SetPadded(true)
+	window.SetPadded(false)
 	window.Canvas().SetOnTypedKey(func(k *fyne.KeyEvent) {
 		if k.Name == fyne.KeyEscape {
 			appConfig.safeClose()
@@ -213,7 +213,7 @@ func main() {
 	})
 
 	window.SetContent(container.NewVBox(
-		container.New(layout.NewHBoxLayout(),
+		container.NewHBox(
 			layout.NewSpacer(),
 			logoTextItem,
 			layout.NewSpacer(),
