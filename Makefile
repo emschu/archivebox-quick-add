@@ -35,7 +35,7 @@ bundle: ## bundle resources
 	$(GO_PATH)/bin/fyne bundle -append "Icon.png" >> bundled.go
 
 .PHONY: package
-package: clean build ## packages the application on the local platform
+package: clean bundle build ## packages the application on the local platform
 	$(GO_PATH)/bin/fyne package -appVersion $(APP_VERSION_DOT) -release
 
 .PHONY: release
