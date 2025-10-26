@@ -1,4 +1,3 @@
-//
 // archivebox-quick-add
 // 2022 emschu[aet]mailbox.org
 //
@@ -20,7 +19,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"fyne.io/fyne/v2"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -28,6 +26,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"fyne.io/fyne/v2"
 )
 
 func isURL(inputStr string) bool {
@@ -173,7 +173,7 @@ func setupArchiveBoxConnection() {
 	if err != nil {
 		csrfErrMsg := "Cannot find csrfmiddlewaretoken!"
 		log.Println(csrfErrMsg)
-		appSessionState.ConnectionErr = fmt.Errorf(csrfErrMsg)
+		appSessionState.ConnectionErr = fmt.Errorf("%s", csrfErrMsg)
 		appConfig.disconnect()
 		return
 	}
@@ -242,15 +242,15 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 	setupArchiveBoxConnection()
 	urlToSave = strings.TrimSpace(urlToSave)
 	if !appSessionState.IsConnected {
-		return false, fmt.Errorf(t("NoConnectionToInstance"))
+		return false, fmt.Errorf("%s", t("NoConnectionToInstance"))
 	}
 
 	// validate url at first
 	if len(urlToSave) < 5 {
-		return false, fmt.Errorf(t("URLTooShort"))
+		return false, fmt.Errorf("%s", t("URLTooShort"))
 	}
 	if !isURL(urlToSave) {
-		return false, fmt.Errorf(t("InvalidURL"))
+		return false, fmt.Errorf("%s", t("InvalidURL"))
 	}
 
 	buffer := bytes.NewBuffer([]byte(fmt.Sprintf("csrfmiddlewaretoken=%s&url=%s&parser=auto&tag=&depth=0",
@@ -274,7 +274,7 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 			URL string
 		}{URL: appConfig.InstanceURL})
 		log.Printf("%s\n", msg)
-		return false, fmt.Errorf(msg)
+		return false, fmt.Errorf("%s", msg)
 	}
 	defer do.Body.Close()
 	log.Printf("entry add response status: %v\n", do.StatusCode)

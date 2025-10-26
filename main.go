@@ -19,6 +19,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"image/color"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"sync/atomic"
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -30,14 +39,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
-	"image/color"
-	"log"
-	"net/http"
-	"net/url"
-	"os"
-	"strings"
-	"sync/atomic"
-	"time"
 )
 
 // default http client
@@ -235,7 +236,9 @@ func main() {
 	// called on startup
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		window.Canvas().Focus(inputEntryWidget)
+		fyne.Do(func() {
+			window.Canvas().Focus(inputEntryWidget)
+		})
 
 		pasteClipboard()
 	}()
