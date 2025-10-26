@@ -18,7 +18,7 @@ help: ## show this help
 
 .PHONY: setup
 setup: ## setup project tools
-	$(GO) install fyne.io/fyne/v2/cmd/fyne@latest
+	$(GO) install fyne.io/tools/cmd/fyne@latest
 
 .PHONY: build
 build: bundle ## build project without development mode
@@ -36,7 +36,7 @@ bundle: ## bundle resources
 
 .PHONY: package
 package: clean build ## packages the application on the local platform
-	$(GO_PATH)/bin/fyne package -appVersion $(APP_VERSION_DOT) -release
+	$(GO_PATH)/bin/fyne package --app-version $(APP_VERSION_DOT) --release
 
 .PHONY: release
 release: clean ## release build for all platforms
