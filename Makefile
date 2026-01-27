@@ -2,8 +2,8 @@ SHELL := /bin/bash
 
 # go requirements: fyne + fyne-cross
 
-APP_VERSION_STR = "v1-10"
-APP_VERSION_DOT := "1.10"
+APP_VERSION_STR = "v1-11"
+APP_VERSION_DOT := "1.11"
 
 GO := GO111MODULE=on CGO_ENABLED=1 go
 GO_PATH = $(shell $(GO) env GOPATH)
@@ -14,7 +14,7 @@ all: help
 
 .PHONY: help
 help: ## show this help
-	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
+	@grep -F -h "##" $(MAKEFILE_LIST) | grep -F -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
 .PHONY: setup
 setup: ## setup project tools
@@ -40,18 +40,18 @@ package: clean build ## packages the application on the local platform
 
 .PHONY: release
 release: clean ## release build for all platforms
-	$(GO_PATH)/bin/fyne-cross windows -name archivebox-quick-add-windows-amd64-$(APP_VERSION_STR).exe -arch "amd64"
-	$(GO_PATH)/bin/fyne-cross windows -name archivebox-quick-add-windows-386-$(APP_VERSION_STR).exe -arch "386"
-	$(GO_PATH)/bin/fyne-cross freebsd -name archivebox-quick-add-freebsd-arm64-$(APP_VERSION_STR) -arch "arm64"
-	$(GO_PATH)/bin/fyne-cross freebsd -name archivebox-quick-add-freebsd-amd64-$(APP_VERSION_STR) -arch "amd64"
+	$(GO_PATH)/bin/fyne-cross windows -name archivebox-quick-add-windows-amd64-$(APP_VERSION_STR).exe -arch "amd64" --app-id org.archivebox.go-quick-add --app-version $(APP_VERSION_DOT)
+	$(GO_PATH)/bin/fyne-cross windows -name archivebox-quick-add-windows-386-$(APP_VERSION_STR).exe -arch "386" --app-id org.archivebox.go-quick-add --app-version $(APP_VERSION_DOT)
+	$(GO_PATH)/bin/fyne-cross freebsd -name archivebox-quick-add-freebsd-arm64-$(APP_VERSION_STR) -arch "arm64" --app-id org.archivebox.go-quick-add --app-version $(APP_VERSION_DOT)
+	$(GO_PATH)/bin/fyne-cross freebsd -name archivebox-quick-add-freebsd-amd64-$(APP_VERSION_STR) -arch "amd64" --app-id org.archivebox.go-quick-add --app-version $(APP_VERSION_DOT)
 	#$(GO_PATH)/bin/fyne-cross darwin -name archivebox-quick-add-$(APP_VERSION) -arch "*" -app-id "org.archivebox.quick-add"
-	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-386-$(APP_VERSION_STR) -arch "386"
-	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-amd64-$(APP_VERSION_STR) -arch "amd64"
-	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-arm-$(APP_VERSION_STR) -arch "arm"
-	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-arm64-$(APP_VERSION_STR) -arch "arm64"
+	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-386-$(APP_VERSION_STR) -arch "386" --app-id org.archivebox.go-quick-add --app-version $(APP_VERSION_DOT)
+	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-amd64-$(APP_VERSION_STR) -arch "amd64" --app-version $(APP_VERSION_DOT)
+	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-arm-$(APP_VERSION_STR) -arch "arm" --app-version $(APP_VERSION_DOT)
+	$(GO_PATH)/bin/fyne-cross linux -name archivebox-quick-add-linux-arm64-$(APP_VERSION_STR) -arch "arm64" --app-version $(APP_VERSION_DOT)
 
-	cp -f fyne-cross/dist/windows-amd64/archivebox-quick-add-windows-amd64-$(APP_VERSION_STR).exe.zip release
-	cp -f fyne-cross/dist/windows-386/archivebox-quick-add-windows-386-$(APP_VERSION_STR).exe.zip release
+	cp -f fyne-cross/dist/windows-amd64/archivebox-quick-add-windows-amd64-$(APP_VERSION_STR).exe.zip release/archivebox-quick-add-windows-amd64-$(APP_VERSION_STR).zip
+	cp -f fyne-cross/dist/windows-386/archivebox-quick-add-windows-386-$(APP_VERSION_STR).exe.zip release/archivebox-quick-add-windows-386-$(APP_VERSION_STR).zip
 	cp -f fyne-cross/dist/freebsd-arm64/archivebox-quick-add-freebsd-arm64-$(APP_VERSION_STR).tar.xz release
 	cp -f fyne-cross/dist/freebsd-amd64/archivebox-quick-add-freebsd-amd64-$(APP_VERSION_STR).tar.xz release
 

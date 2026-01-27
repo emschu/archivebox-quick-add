@@ -4,7 +4,7 @@
 [ArchiveBox](https://github.com/ArchiveBox/ArchiveBox/) instance in the background and without interrupting your current
 work.**
 
-Version: 1.10
+Version: 1.11
 
 ![App Logo](./Icon.png)
 

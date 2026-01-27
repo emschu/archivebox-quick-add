@@ -98,8 +98,8 @@ const (
 func main() {
 	appConfig = applicationConfiguration{
 		AppID:           "org.archivebox.go-quick-add",
-		AppName:         "ArchiveBox Quick-Add",
-		AppVersion:      "1.10",
+		AppName:         "ArchiveBoxQuickAdd",
+		AppVersion:      "1.11",
 		AppLinkToGitHub: "https://github.com/emschu/archivebox-quick-add",
 	}
 
