@@ -1,4 +1,3 @@
-//
 // archivebox-quick-add
 // 2022 emschu[aet]mailbox.org
 //
@@ -18,14 +17,15 @@
 package main
 
 import (
+	"log"
+	"strings"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/cmd/fyne_settings/settings"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/validation"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"log"
-	"strings"
 )
 
 var isAppearanceWindowOpen = false
@@ -35,7 +35,9 @@ func pasteClipboard() {
 	if clipboard != nil {
 		currentClipboard := clipboard.Content()
 		if len(currentClipboard) > 0 && isURL(currentClipboard) {
-			inputEntryWidget.SetText(strings.TrimSpace(currentClipboard))
+			fyne.Do(func() {
+				inputEntryWidget.SetText(strings.TrimSpace(currentClipboard))
+			})
 		}
 	} else {
 		log.Printf("Could not access clipboard!\n")
