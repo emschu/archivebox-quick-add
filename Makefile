@@ -52,8 +52,8 @@ release: clean ## release build for all platforms
 
 	cp -f fyne-cross/dist/windows-amd64/archivebox-quick-add-windows-amd64-$(APP_VERSION_STR).exe.zip release/archivebox-quick-add-windows-amd64-$(APP_VERSION_STR).zip
 	cp -f fyne-cross/dist/windows-386/archivebox-quick-add-windows-386-$(APP_VERSION_STR).exe.zip release/archivebox-quick-add-windows-386-$(APP_VERSION_STR).zip
-	cp -f fyne-cross/dist/freebsd-arm64/archivebox-quick-add-freebsd-arm64-$(APP_VERSION_STR).tar.xz release
-	cp -f fyne-cross/dist/freebsd-amd64/archivebox-quick-add-freebsd-amd64-$(APP_VERSION_STR).tar.xz release
+	#cp -f fyne-cross/dist/freebsd-arm64/archivebox-quick-add-freebsd-arm64-$(APP_VERSION_STR).tar.xz release
+	#cp -f fyne-cross/dist/freebsd-amd64/archivebox-quick-add-freebsd-amd64-$(APP_VERSION_STR).tar.xz release
 
 	cp -f fyne-cross/dist/linux-386/archivebox-quick-add-linux-386-$(APP_VERSION_STR).tar.xz release
 	cp -f fyne-cross/dist/linux-amd64/archivebox-quick-add-linux-amd64-$(APP_VERSION_STR).tar.xz release
