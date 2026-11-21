@@ -30,14 +30,14 @@ import (
 
 var isAppearanceWindowOpen = false
 
+// pasteClipboard reads the clipboard and pre-fills the URL input field.
+// It must be called on the main Fyne thread (wrap calls from goroutines in fyne.DoAndWait).
 func pasteClipboard() {
 	clipboard := window.Clipboard()
 	if clipboard != nil {
 		currentClipboard := clipboard.Content()
 		if len(currentClipboard) > 0 && isURL(currentClipboard) {
-			fyne.Do(func() {
-				inputEntryWidget.SetText(strings.TrimSpace(currentClipboard))
-			})
+			inputEntryWidget.SetText(strings.TrimSpace(currentClipboard))
 		}
 	} else {
 		log.Printf("Could not access clipboard!\n")

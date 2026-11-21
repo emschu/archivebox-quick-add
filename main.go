@@ -236,11 +236,10 @@ func main() {
 	// called on startup
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		fyne.Do(func() {
+		fyne.DoAndWait(func() {
 			window.Canvas().Focus(inputEntryWidget)
+			pasteClipboard()
 		})
-
-		pasteClipboard()
 	}()
 	window.ShowAndRun()
 }
@@ -332,11 +331,14 @@ func (*applicationConfiguration) safeClose() {
 func (*applicationConfiguration) disconnect() {
 	appSessionState.IsConnected = false
 	log.Printf("Warn: No connection could be established!\n")
-	infoLabel.Text = t("NoConnectionPossible")
+	msg := t("NoConnectionPossible")
 	if appSessionState.ConnectionErr != nil {
-		infoLabel.Text += " " + appSessionState.ConnectionErr.Error()
+		msg += " " + appSessionState.ConnectionErr.Error()
 	}
-	infoLabel.Refresh()
+	fyne.Do(func() {
+		infoLabel.Text = msg
+		infoLabel.Refresh()
+	})
 }
 
 type atomicBool int32

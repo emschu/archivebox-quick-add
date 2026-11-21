@@ -69,7 +69,7 @@ func doArchiveBoxLogin() {
 	}
 
 	for _, i := range do.Cookies() {
-		if i.Name == "sessionid" {
+		if strings.HasPrefix(i.Name, "archivebox_sessionid_") {
 			appSessionState.SessionCookie = i
 			log.Printf("Session id is set successfully")
 			appSessionState.IsConnected = true
@@ -79,12 +79,13 @@ func doArchiveBoxLogin() {
 }
 
 func doArchiveBoxLogout() {
+	// TODO the logout mechanism is broken. Do not touch it yet
 	if appSessionState.SessionCookie == nil || appSessionState.CsrfToken == nil {
 		// there was no login
 		return
 	}
 
-	request, err := buildGetRequest("/admin/logout")
+	request, err := buildGetRequest("/admin/logout/")
 	if err != nil {
 		log.Printf("Error creating logout request\n")
 		return
@@ -150,7 +151,7 @@ func setupArchiveBoxConnection() {
 		return
 	}
 
-	adminResp, err := httpClient.Get(fmt.Sprintf("%s/admin/login", appConfig.InstanceURL))
+	adminResp, err := httpClient.Get(fmt.Sprintf("%s/admin/login/", appConfig.InstanceURL))
 	if err != nil {
 		appSessionState.ConnectionErr = err
 		appConfig.disconnect()
@@ -159,7 +160,7 @@ func setupArchiveBoxConnection() {
 	defer adminResp.Body.Close()
 
 	for _, c := range adminResp.Cookies() {
-		if c.Name == "csrftoken" {
+		if strings.HasPrefix(c.Name, "archivebox_csrftoken_") {
 			if len(c.Value) > 0 {
 				appSessionState.CsrfToken = c
 			}
@@ -294,8 +295,10 @@ func archiveURL(urlInput string) {
 	infoLabel.Text = ""
 	log.Printf("Started URL archiving for url '%s'\n", urlInput)
 	go func() {
-		inputEntryWidget.Disable()
-		addToArchiveBtn.Disable()
+		fyne.Do(func() {
+			inputEntryWidget.Disable()
+			addToArchiveBtn.Disable()
+		})
 		hasWorked, err := sendURLToArchiveBox(urlInput)
 		if hasWorked {
 			// all went fine!
@@ -319,7 +322,9 @@ func archiveURL(urlInput string) {
 					if closeAppPref {
 						fyneApplication.Quit()
 					}
-					inputEntryWidget.SetText("")
+					fyne.Do(func() {
+						inputEntryWidget.SetText("")
+					})
 				} else {
 					fyneApplication.SendNotification(&fyne.Notification{
 						Title: tWithArgs("NotificationTitle", struct {
@@ -340,20 +345,27 @@ func archiveURL(urlInput string) {
 				if closeAppPref {
 					fyneApplication.Quit()
 				}
-				inputEntryWidget.SetText("")
+				fyne.Do(func() {
+					inputEntryWidget.SetText("")
+				})
 			}
 		}
 		if err != nil {
-			infoLabel.Text = tWithArgs("ProblemAddingURL", struct {
+			errMsg := tWithArgs("ProblemAddingURL", struct {
 				ERROR string
 			}{ERROR: err.Error()})
+			fyne.Do(func() {
+				infoLabel.Text = errMsg
+			})
 		}
-		infoLabel.Refresh()
-		inputEntryWidget.Enable()
-		inputEntryWidget.Refresh()
-		addToArchiveBtn.Enable()
-		addToArchiveBtn.Refresh()
-		window.Resize(windowSize)
+		fyne.Do(func() {
+			infoLabel.Refresh()
+			inputEntryWidget.Enable()
+			inputEntryWidget.Refresh()
+			addToArchiveBtn.Enable()
+			addToArchiveBtn.Refresh()
+			window.Resize(windowSize)
+		})
 	}()
 	infoLabel.Refresh()
 	log.Println("Finished URL archiving process")

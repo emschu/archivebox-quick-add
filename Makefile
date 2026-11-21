@@ -81,6 +81,7 @@ release-darwin: ## build macOS .app bundles (must run on a macOS host with fyne 
 .PHONY: version
 version: ## populate the current version defined in this make file
 	sed -r -i 's/AppVersion:      "([0-9]+.[0-9]+)"/AppVersion:      "'$(APP_VERSION_DOT)'"/g' main.go
+	sed -r -i 's/Version = "([0-9]+.[0-9]+)"/Version = "'$(APP_VERSION_DOT)'"/g' FyneApp.toml
 	sed -r -i 's/Version: ([0-9]+.[0-9]+)/Version: '$(APP_VERSION_DOT)'/g' README.md
 
 .PHONY: clean
