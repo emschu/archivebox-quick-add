@@ -117,7 +117,7 @@ jobs:
         run: |
           mkdir -p artifacts
           if [ '${{ matrix.target }}' = 'windows' ]; then
-            mv "fyne-cross/dist/windows-${{ matrix.arch }}/${NAME}.exe.zip" "artifacts/${NAME}.zip"
+            mv "fyne-cross/dist/windows-${{ matrix.arch }}/${NAME}.zip" "artifacts/${NAME}.zip"
           else
             mv "fyne-cross/dist/${{ matrix.target }}-${{ matrix.arch }}/${NAME}.tar.xz" artifacts/
           fi
