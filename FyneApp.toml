@@ -1,0 +1,13 @@
+Website = "https://github.com/emschu/archivebox-quick-add"
+
+[Details]
+Icon = "Icon.png"
+Name = "ArchiveBox-QuickAdd"
+ID = "org.emschu.archivebox-quick-add"
+Version = "1.14"
+Build = 6
+
+[LinuxAndBSD]
+GenericName = "ArchiveBox-QuickAdd"
+Comment = "Archive URLs with ArchiveBox"
+Keywords = ["archivebox", "web"]

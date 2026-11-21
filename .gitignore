@@ -1,5 +1,6 @@
 .idea
 *.bak
+.cache
 
 fyne-cross
 release

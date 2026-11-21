@@ -1,0 +1,232 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Validate tag and compute version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      app_version: ${{ steps.version.outputs.app_version }}
+      file_version: ${{ steps.version.outputs.file_version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+
+    steps:
+      - name: Validate tag and compute version
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME}"
+
+          # Accept vMAJOR.MINOR.PATCH with an optional -PRERELEASE suffix.
+          if ! [[ "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '${tag}' is not a valid release tag. Use vMAJOR.MINOR.PATCH with an optional prerelease suffix, e.g. v1.14.0 or v1.14.0-rc1."
+            exit 1
+          fi
+
+          version="${tag#v}"
+          app_version="${version%%-*}"
+          file_version="${tag//./-}"
+          if [[ "${version}" == *-* ]]; then
+            prerelease=true
+          else
+            prerelease=false
+          fi
+
+          echo "version=${version}"             >> "${GITHUB_OUTPUT}"
+          echo "app_version=${app_version}"     >> "${GITHUB_OUTPUT}"
+          echo "file_version=${file_version}"   >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${prerelease}"       >> "${GITHUB_OUTPUT}"
+
+  build:
+    name: Build ${{ matrix.target }} ${{ matrix.arch }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux
+            arch: amd64
+          - target: linux
+            arch: '386'
+          - target: linux
+            arch: arm
+          - target: linux
+            arch: arm64
+          - target: windows
+            arch: amd64
+          - target: windows
+            arch: '386'
+          - target: freebsd
+            arch: amd64
+          - target: freebsd
+            arch: arm64
+
+    env:
+      NAME: archivebox-quick-add-${{ matrix.target }}-${{ matrix.arch }}-${{ needs.prepare.outputs.file_version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Stamp app version from tag
+        env:
+          APP_VERSION: ${{ needs.prepare.outputs.app_version }}
+        run: |
+          sed -i -E 's/(AppVersion:[[:space:]]*)"[0-9]+(\.[0-9]+)*"/\1"'"${APP_VERSION}"'"/' main.go
+          grep -n 'AppVersion' main.go
+
+      - name: Install fyne-cross
+        run: go install github.com/fyne-io/fyne-cross@v1.6.3
+
+      - name: Build ${{ matrix.target }} ${{ matrix.arch }}
+        run: |
+          # FreeBSD: the default Wayland backend cannot be linked against the
+          # sysroot of the fyne-cross image (undefined glfwGetWayland* symbols),
+          # so build with the X11 backend instead.
+          extra_args=()
+          if [ '${{ matrix.target }}' = 'freebsd' ]; then
+            extra_args+=(-tags x11)
+          fi
+          fyne-cross ${{ matrix.target }} \
+            -arch '${{ matrix.arch }}' \
+            -name "${NAME}" \
+            -app-id 'org.archivebox.go-quick-add' \
+            -app-version '${{ needs.prepare.outputs.app_version }}' \
+            "${extra_args[@]}" \
+            -engine docker
+
+      - name: Collect release archive
+        run: |
+          mkdir -p artifacts
+          if [ '${{ matrix.target }}' = 'windows' ]; then
+            mv "fyne-cross/dist/windows-${{ matrix.arch }}/${NAME}.exe.zip" "artifacts/${NAME}.zip"
+          else
+            mv "fyne-cross/dist/${{ matrix.target }}-${{ matrix.arch }}/${NAME}.tar.xz" artifacts/
+          fi
+          ls -l artifacts
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist-${{ matrix.target }}-${{ matrix.arch }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 7
+
+  build-darwin:
+    name: Build darwin ${{ matrix.arch }}
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: amd64
+            runner: macos-15-intel
+
+    env:
+      NAME: archivebox-quick-add-darwin-${{ matrix.arch }}-${{ needs.prepare.outputs.file_version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Stamp app version from tag
+        env:
+          APP_VERSION: ${{ needs.prepare.outputs.app_version }}
+        run: |
+          sed -i '' -E 's/(AppVersion:[[:space:]]*)"[0-9]+(\.[0-9]+)*"/\1"'"${APP_VERSION}"'"/' main.go
+          grep -n 'AppVersion' main.go
+
+      - name: Install fyne CLI
+        run: |
+          go install fyne.io/tools/cmd/fyne@v1.7.4
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # fyne-cross is not used here: it requires docker, which is not available
+      # on the hosted macOS runners. The fyne CLI packages the .app natively.
+      - name: Build macOS app
+        env:
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          fyne package \
+            -os darwin \
+            -name "${NAME}" \
+            --app-id 'org.archivebox.go-quick-add' \
+            --app-version '${{ needs.prepare.outputs.app_version }}' \
+            --release
+          mkdir -p artifacts
+          ditto -c -k --sequesterRsrc --keepParent "${NAME}.app" "artifacts/${NAME}.zip"
+          ls -l artifacts
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist-darwin-${{ matrix.arch }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub release
+    needs:
+      - prepare
+      - build
+      - build-darwin
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release archives
+        uses: actions/download-artifact@v8
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd dist
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Archivebox Quick Add ${{ needs.prepare.outputs.version }}
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*

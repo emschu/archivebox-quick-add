@@ -1,5 +1,5 @@
 // archivebox-quick-add
-// 2022 emschu[aet]mailbox.org
+// 2026 emschu[aet]mailbox.org
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,8 +47,9 @@ var httpClient = &http.Client{
 	Timeout: 10 * time.Second,
 }
 
-var archiveSearchHTTPClient = &http.Client{
-	Timeout: 30 * time.Second,
+// adding a URL may take a while on the server side
+var addURLHTTPClient = &http.Client{
+	Timeout: 60 * time.Second,
 }
 
 var fyneApplication fyne.App
@@ -64,6 +66,25 @@ var appSessionState sessionState
 
 var isDebug = false
 
+// connectionConfigMu guards the connection settings that are read by request
+// goroutines and written by the settings dialog.
+var connectionConfigMu sync.RWMutex
+
+// currentConnectionConfig returns a consistent snapshot of the connection settings.
+func currentConnectionConfig() (string, string) {
+	connectionConfigMu.RLock()
+	defer connectionConfigMu.RUnlock()
+	return appConfig.InstanceURL, appConfig.APIKey
+}
+
+// updateConnectionConfig replaces the connection settings shared with goroutines.
+func updateConnectionConfig(instanceURL, apiKey string) {
+	connectionConfigMu.Lock()
+	defer connectionConfigMu.Unlock()
+	appConfig.InstanceURL = instanceURL
+	appConfig.APIKey = apiKey
+}
+
 // all app-wide vars besides the archivebox session state belong here
 type applicationConfiguration struct {
 	AppID           string
@@ -71,25 +92,19 @@ type applicationConfiguration struct {
 	AppVersion      string
 	AppLinkToGitHub string
 	InstanceURL     string
+	APIKey          string
 	Localizer       *i18n.Localizer
 }
 
-// store archivebox session state, e.g. cookies
+// stores UI-related state shared between the UI thread and background goroutines
 type sessionState struct {
-	IsConnected         bool
-	CsrfToken           *http.Cookie
-	SessionCookie       *http.Cookie
-	CsrfMiddlewareToken string
-	ConnectionErr       error // store latest error
 	IsSubmissionBlocked atomicBool
 	IsCloseBlocked      atomicBool
 }
 
 const (
 	preferenceInstanceURL   = "InstanceURL"   // string
-	preferenceUsername      = "Username"      // string
-	preferencePassword      = "Password"      // string
-	preferenceBorderless    = "Borderless"    // bool
+	preferenceAPIKey        = "APIKey"        // string
 	preferenceCheckAdd      = "CheckAdd"      // bool
 	preferenceCloseAfterAdd = "CloseAfterAdd" // bool
 	preferenceFirstRun      = "FirstRun"      // bool
@@ -99,12 +114,11 @@ func main() {
 	appConfig = applicationConfiguration{
 		AppID:           "org.archivebox.go-quick-add",
 		AppName:         "ArchiveBoxQuickAdd",
-		AppVersion:      "1.13",
+		AppVersion:      "1.14",
 		AppLinkToGitHub: "https://github.com/emschu/archivebox-quick-add",
 	}
 
 	appSessionState = sessionState{}
-	appSessionState.IsConnected = false
 	appSessionState.IsSubmissionBlocked = *newAtomicBool(false)
 	appSessionState.IsCloseBlocked = *newAtomicBool(false)
 	appConfig.initI18n()
@@ -112,18 +126,20 @@ func main() {
 	fyneApplication = app.NewWithID(appConfig.AppID)
 	fyneApplication.SetIcon(resourceIconPng)
 
-	// load archive box instance url
-	appConfig.InstanceURL = fyneApplication.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
-
 	isFirstRun := fyneApplication.Preferences().BoolWithFallback(preferenceFirstRun, true)
 	if isFirstRun {
 		// initial preference setup
 		appConfig.doInitialPreferenceSetup()
 	}
 
-	isSplashScreen := fyneApplication.Preferences().BoolWithFallback(preferenceBorderless, true)
+	// load archive box instance url and api key
+	updateConnectionConfig(
+		fyneApplication.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000"),
+		fyneApplication.Preferences().StringWithFallback(preferenceAPIKey, ""),
+	)
+
 	drv, ok := fyne.CurrentApp().Driver().(desktop.Driver)
-	if ok && isSplashScreen {
+	if ok {
 		window = drv.CreateSplashWindow()
 	} else {
 		window = fyneApplication.NewWindow(appConfig.AppName)
@@ -164,17 +180,14 @@ func main() {
 		Monospace: false,
 	}
 
-	defer func() {
-		doArchiveBoxLogout()
-	}()
-
-	parsedURL, err := url.Parse(appConfig.InstanceURL)
+	instanceURL, _ := currentConnectionConfig()
+	parsedURL, err := url.Parse(instanceURL)
 	var instanceLink fyne.Widget
 	if err != nil {
 		log.Printf("No valid url to archivebox instance\n")
 		instanceLink = widget.NewLabel("")
 	} else {
-		instanceLink = widget.NewHyperlink(appConfig.InstanceURL, parsedURL)
+		instanceLink = widget.NewHyperlink(instanceURL, parsedURL)
 	}
 
 	inputEntryWidget = newURLInputField()
@@ -236,20 +249,17 @@ func main() {
 	// called on startup
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		fyne.Do(func() {
+		fyne.DoAndWait(func() {
 			window.Canvas().Focus(inputEntryWidget)
+			pasteClipboard()
 		})
-
-		pasteClipboard()
 	}()
 	window.ShowAndRun()
 }
 
 func (*applicationConfiguration) doInitialPreferenceSetup() {
-	fyneApplication.Preferences().SetString(preferenceInstanceURL, "http://127.0.0.1:8000")
-	fyneApplication.Preferences().SetString(preferenceUsername, "")
-	fyneApplication.Preferences().SetString(preferencePassword, "")
-	fyneApplication.Preferences().SetBool(preferenceBorderless, true)
+	fyneApplication.Preferences().SetString(preferenceInstanceURL, "http://127.0.0.1:5797")
+	fyneApplication.Preferences().SetString(preferenceAPIKey, "")
 	fyneApplication.Preferences().SetBool(preferenceCloseAfterAdd, true)
 	fyneApplication.Preferences().SetBool(preferenceCheckAdd, true)
 
@@ -329,14 +339,16 @@ func (*applicationConfiguration) safeClose() {
 	}
 }
 
-func (*applicationConfiguration) disconnect() {
-	appSessionState.IsConnected = false
+func (*applicationConfiguration) disconnect(err error) {
 	log.Printf("Warn: No connection could be established!\n")
-	infoLabel.Text = t("NoConnectionPossible")
-	if appSessionState.ConnectionErr != nil {
-		infoLabel.Text += " " + appSessionState.ConnectionErr.Error()
+	msg := t("NoConnectionPossible")
+	if err != nil {
+		msg += " " + err.Error()
 	}
-	infoLabel.Refresh()
+	fyne.Do(func() {
+		infoLabel.Text = msg
+		infoLabel.Refresh()
+	})
 }
 
 type atomicBool int32
