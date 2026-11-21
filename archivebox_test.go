@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -31,15 +32,11 @@ func setupAPIClientTest(t *testing.T, handler http.HandlerFunc) {
 	server := httptest.NewServer(handler)
 	t.Cleanup(func() {
 		server.Close()
-		appConfig.InstanceURL = ""
-		appConfig.APIKey = ""
-		appSessionState.IsConnected = false
-		appSessionState.ConnectionErr = nil
+		updateConnectionConfig("", "")
 	})
 	appConfig.initI18n()
 	// a trailing slash in the configuration must not produce a broken API path
-	appConfig.InstanceURL = server.URL + "/"
-	appConfig.APIKey = testAPIKey
+	updateConnectionConfig(server.URL+"/", testAPIKey)
 }
 
 func assertBearerAuth(t *testing.T, request *http.Request) {
@@ -71,9 +68,6 @@ func TestCheckArchiveBoxConnectionSuccess(t *testing.T) {
 	if err := checkArchiveBoxConnection(); err != nil {
 		t.Fatalf("connection check failed: %v", err)
 	}
-	if !appSessionState.IsConnected {
-		t.Error("connection state was not set to connected")
-	}
 }
 
 func TestCheckArchiveBoxConnectionInvalidKey(t *testing.T) {
@@ -85,16 +79,14 @@ func TestCheckArchiveBoxConnectionInvalidKey(t *testing.T) {
 	if err := checkArchiveBoxConnection(); err == nil {
 		t.Fatal("expected an error for an invalid API key")
 	}
-	if appSessionState.IsConnected {
-		t.Error("connection state must not be connected for an invalid API key")
-	}
 }
 
 func TestCheckArchiveBoxConnectionEmptyKey(t *testing.T) {
 	setupAPIClientTest(t, func(w http.ResponseWriter, r *http.Request) {
 		t.Error("no request expected when the API key is empty")
 	})
-	appConfig.APIKey = ""
+	instanceURL, _ := currentConnectionConfig()
+	updateConnectionConfig(instanceURL, "")
 
 	if err := checkArchiveBoxConnection(); err == nil {
 		t.Fatal("expected an error for an empty API key")
@@ -173,4 +165,37 @@ func TestAddURLToArchiveBoxReportsAPIErrors(t *testing.T) {
 	if outcome.Accepted {
 		t.Error("failed add must not report acceptance")
 	}
+}
+
+// TestConcurrentConfigAccess guards against data races between settings
+// updates and the goroutines that build authenticated API requests.
+func TestConcurrentConfigAccess(t *testing.T) {
+	setupAPIClientTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success": true, "user_id": "2", "username": "admin"}`))
+	})
+
+	const workers = 4
+	const iterations = 10
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				instanceURL, _ := currentConnectionConfig()
+				updateConnectionConfig(instanceURL, testAPIKey)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				if err := checkArchiveBoxConnection(); err != nil {
+					t.Errorf("connection check failed: %v", err)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

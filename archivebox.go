@@ -48,7 +48,8 @@ func isURL(inputStr string) bool {
 // buildAPIRequest creates a request against the ArchiveBox REST API and
 // authenticates it with the configured API key.
 func buildAPIRequest(method, apiPath string, requestBody []byte) (*http.Request, error) {
-	instanceURL := strings.TrimRight(strings.TrimSpace(appConfig.InstanceURL), "/")
+	instanceURL, apiKey := currentConnectionConfig()
+	instanceURL = strings.TrimRight(strings.TrimSpace(instanceURL), "/")
 	requestURL := instanceURL + apiBasePath + strings.TrimLeft(apiPath, "/")
 
 	var reader io.Reader
@@ -60,7 +61,7 @@ func buildAPIRequest(method, apiPath string, requestBody []byte) (*http.Request,
 		return nil, err
 	}
 	request.Header.Set("Accept", "application/json")
-	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(appConfig.APIKey))
+	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(apiKey))
 	if requestBody != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
@@ -71,21 +72,21 @@ func buildAPIRequest(method, apiPath string, requestBody []byte) (*http.Request,
 // /auth/check_api_token endpoint. It is free of UI calls so it can be tested
 // without a running Fyne application.
 func checkArchiveBoxConnection() error {
-	appSessionState.IsConnected = false
+	instanceURL, apiKey := currentConnectionConfig()
 
-	if len(strings.TrimSpace(appConfig.InstanceURL)) == 0 {
+	if len(strings.TrimSpace(instanceURL)) == 0 {
 		return fmt.Errorf("invalid empty url to archivebox")
 	}
-	if !isURL(appConfig.InstanceURL) {
+	if !isURL(instanceURL) {
 		return fmt.Errorf("url does not start with 'http[s]://'")
 	}
-	if len(strings.TrimSpace(appConfig.APIKey)) == 0 {
+	if len(strings.TrimSpace(apiKey)) == 0 {
 		return fmt.Errorf("%s", t("InvalidAPIKey"))
 	}
 
 	credentials, err := json.Marshal(struct {
 		Token string `json:"token"`
-	}{Token: strings.TrimSpace(appConfig.APIKey)})
+	}{Token: strings.TrimSpace(apiKey)})
 	if err != nil {
 		return err
 	}
@@ -115,7 +116,6 @@ func checkArchiveBoxConnection() error {
 		return fmt.Errorf("%s", t("InvalidAPIKey"))
 	}
 
-	appSessionState.IsConnected = true
 	if isDebug {
 		log.Printf("Authenticated as '%s'\n", checkResult.Username)
 	}
@@ -125,11 +125,8 @@ func checkArchiveBoxConnection() error {
 // setupArchiveBoxConnection is the UI-facing wrapper around the connection check.
 func setupArchiveBoxConnection() {
 	if err := checkArchiveBoxConnection(); err != nil {
-		appSessionState.ConnectionErr = err
-		appConfig.disconnect()
-		return
+		appConfig.disconnect(err)
 	}
-	appSessionState.ConnectionErr = nil
 }
 
 // cliAddResult is the payload returned by POST /api/v1/cli/add. Modern
@@ -201,9 +198,10 @@ func addURLToArchiveBox(urlToSave string) (addOutcome, error) {
 
 	response, err := addURLHTTPClient.Do(request)
 	if err != nil {
+		instanceURL, _ := currentConnectionConfig()
 		return addOutcome{}, fmt.Errorf("%s", tWithArgs("ProblemCallingArchiveBox", struct {
 			URL string
-		}{URL: appConfig.InstanceURL}))
+		}{URL: instanceURL}))
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
@@ -234,8 +232,7 @@ func addURLToArchiveBox(urlToSave string) (addOutcome, error) {
 
 func sendURLToArchiveBox(urlToSave string) (addOutcome, error) {
 	if err := checkArchiveBoxConnection(); err != nil {
-		appSessionState.ConnectionErr = err
-		appConfig.disconnect()
+		appConfig.disconnect(err)
 		return addOutcome{}, fmt.Errorf("%s", t("NoConnectionToInstance"))
 	}
 	return addURLToArchiveBox(urlToSave)
@@ -273,7 +270,7 @@ func archiveURL(urlInput string) {
 				if unescapeErr != nil {
 					urlString = urlInput
 				}
-				content = tWithArgs("URLHasBeenAdded", struct {
+				content = tWithArgs("URLHasBeenQueued", struct {
 					URL string
 				}{URL: urlString})
 			}

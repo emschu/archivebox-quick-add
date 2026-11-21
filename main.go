@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -65,6 +66,25 @@ var appSessionState sessionState
 
 var isDebug = false
 
+// connectionConfigMu guards the connection settings that are read by request
+// goroutines and written by the settings dialog.
+var connectionConfigMu sync.RWMutex
+
+// currentConnectionConfig returns a consistent snapshot of the connection settings.
+func currentConnectionConfig() (string, string) {
+	connectionConfigMu.RLock()
+	defer connectionConfigMu.RUnlock()
+	return appConfig.InstanceURL, appConfig.APIKey
+}
+
+// updateConnectionConfig replaces the connection settings shared with goroutines.
+func updateConnectionConfig(instanceURL, apiKey string) {
+	connectionConfigMu.Lock()
+	defer connectionConfigMu.Unlock()
+	appConfig.InstanceURL = instanceURL
+	appConfig.APIKey = apiKey
+}
+
 // all app-wide vars besides the archivebox session state belong here
 type applicationConfiguration struct {
 	AppID           string
@@ -76,10 +96,8 @@ type applicationConfiguration struct {
 	Localizer       *i18n.Localizer
 }
 
-// stores the current state of the connection to the archivebox instance
+// stores UI-related state shared between the UI thread and background goroutines
 type sessionState struct {
-	IsConnected         bool
-	ConnectionErr       error // store latest error
 	IsSubmissionBlocked atomicBool
 	IsCloseBlocked      atomicBool
 }
@@ -101,7 +119,6 @@ func main() {
 	}
 
 	appSessionState = sessionState{}
-	appSessionState.IsConnected = false
 	appSessionState.IsSubmissionBlocked = *newAtomicBool(false)
 	appSessionState.IsCloseBlocked = *newAtomicBool(false)
 	appConfig.initI18n()
@@ -109,15 +126,17 @@ func main() {
 	fyneApplication = app.NewWithID(appConfig.AppID)
 	fyneApplication.SetIcon(resourceIconPng)
 
-	// load archive box instance url and api key
-	appConfig.InstanceURL = fyneApplication.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
-	appConfig.APIKey = fyneApplication.Preferences().StringWithFallback(preferenceAPIKey, "")
-
 	isFirstRun := fyneApplication.Preferences().BoolWithFallback(preferenceFirstRun, true)
 	if isFirstRun {
 		// initial preference setup
 		appConfig.doInitialPreferenceSetup()
 	}
+
+	// load archive box instance url and api key
+	updateConnectionConfig(
+		fyneApplication.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000"),
+		fyneApplication.Preferences().StringWithFallback(preferenceAPIKey, ""),
+	)
 
 	drv, ok := fyne.CurrentApp().Driver().(desktop.Driver)
 	if ok {
@@ -161,13 +180,14 @@ func main() {
 		Monospace: false,
 	}
 
-	parsedURL, err := url.Parse(appConfig.InstanceURL)
+	instanceURL, _ := currentConnectionConfig()
+	parsedURL, err := url.Parse(instanceURL)
 	var instanceLink fyne.Widget
 	if err != nil {
 		log.Printf("No valid url to archivebox instance\n")
 		instanceLink = widget.NewLabel("")
 	} else {
-		instanceLink = widget.NewHyperlink(appConfig.InstanceURL, parsedURL)
+		instanceLink = widget.NewHyperlink(instanceURL, parsedURL)
 	}
 
 	inputEntryWidget = newURLInputField()
@@ -319,12 +339,11 @@ func (*applicationConfiguration) safeClose() {
 	}
 }
 
-func (*applicationConfiguration) disconnect() {
-	appSessionState.IsConnected = false
+func (*applicationConfiguration) disconnect(err error) {
 	log.Printf("Warn: No connection could be established!\n")
 	msg := t("NoConnectionPossible")
-	if appSessionState.ConnectionErr != nil {
-		msg += " " + appSessionState.ConnectionErr.Error()
+	if err != nil {
+		msg += " " + err.Error()
 	}
 	fyne.Do(func() {
 		infoLabel.Text = msg

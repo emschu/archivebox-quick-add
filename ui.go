@@ -73,7 +73,7 @@ func showSettingsDialog() {
 	linkAddCheckCheckbox := widget.NewCheck("", func(b bool) {})
 	isAddChecked := fyneApplication.Preferences().BoolWithFallback(preferenceCheckAdd, false)
 	linkAddCheckCheckbox.Checked = isAddChecked
-	items = append(items, widget.NewFormItem(t("CheckIfURLWasAdded"), linkAddCheckCheckbox))
+	items = append(items, widget.NewFormItem(t("CheckIfURLWasQueued"), linkAddCheckCheckbox))
 
 	closeAfterAddCheckbox := widget.NewCheck("", func(b bool) {})
 	isCloseAfterAdd := fyneApplication.Preferences().BoolWithFallback(preferenceCloseAfterAdd, false)
@@ -101,8 +101,10 @@ func showSettingsDialog() {
 			fyneApplication.Preferences().SetBool(preferenceCloseAfterAdd, closeAfterAddCheckbox.Checked)
 
 			// use the new values without requiring a restart
-			appConfig.InstanceURL = fyneApplication.Preferences().String(preferenceInstanceURL)
-			appConfig.APIKey = fyneApplication.Preferences().String(preferenceAPIKey)
+			updateConnectionConfig(
+				fyneApplication.Preferences().String(preferenceInstanceURL),
+				fyneApplication.Preferences().String(preferenceAPIKey),
+			)
 			go setupArchiveBoxConnection()
 		}
 	}, window)
