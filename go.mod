@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	fyne.io/fyne/v2 v2.8.2
 	github.com/nicksnyder/go-i18n/v2 v2.7.0
-	golang.org/x/text v0.43.0
+	golang.org/x/text v0.44.0
 )
 
 require (
