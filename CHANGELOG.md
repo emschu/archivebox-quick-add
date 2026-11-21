@@ -33,4 +33,5 @@ Changes since the last release, v1.13.0.
 
 ### Removed
 
+- Borderless window preference.
 - Username and password settings and the associated session-cookie/CSRF login logic.

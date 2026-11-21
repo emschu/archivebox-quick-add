@@ -87,7 +87,6 @@ type sessionState struct {
 const (
 	preferenceInstanceURL   = "InstanceURL"   // string
 	preferenceAPIKey        = "APIKey"        // string
-	preferenceBorderless    = "Borderless"    // bool
 	preferenceCheckAdd      = "CheckAdd"      // bool
 	preferenceCloseAfterAdd = "CloseAfterAdd" // bool
 	preferenceFirstRun      = "FirstRun"      // bool
@@ -120,9 +119,8 @@ func main() {
 		appConfig.doInitialPreferenceSetup()
 	}
 
-	isSplashScreen := fyneApplication.Preferences().BoolWithFallback(preferenceBorderless, true)
 	drv, ok := fyne.CurrentApp().Driver().(desktop.Driver)
-	if ok && isSplashScreen {
+	if ok {
 		window = drv.CreateSplashWindow()
 	} else {
 		window = fyneApplication.NewWindow(appConfig.AppName)
@@ -242,7 +240,6 @@ func main() {
 func (*applicationConfiguration) doInitialPreferenceSetup() {
 	fyneApplication.Preferences().SetString(preferenceInstanceURL, "http://127.0.0.1:5797")
 	fyneApplication.Preferences().SetString(preferenceAPIKey, "")
-	fyneApplication.Preferences().SetBool(preferenceBorderless, true)
 	fyneApplication.Preferences().SetBool(preferenceCloseAfterAdd, true)
 	fyneApplication.Preferences().SetBool(preferenceCheckAdd, true)
 

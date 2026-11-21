@@ -21,7 +21,6 @@ interface at `/admin/api/apitoken/` and enter it in the app's settings alongside
 - Allows you quickly adding a link to ArchiveBox.
     - If your clipboard contains a valid URL, it will be set to the input field on app's startup
     - Shortcut: Type `Ctrl+Return` to archive input link
-- Use a borderless window (default: `true`)
 - Close app after archive submission (default: `true`)
 - Check if URL was added (default: `true`)
 - Customize the appearance

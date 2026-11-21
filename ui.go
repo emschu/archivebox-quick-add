@@ -70,11 +70,6 @@ func showSettingsDialog() {
 	items = append(items, widget.NewFormItem(t("APIKey"), apiKeyEntry))
 	items = append(items, widget.NewFormItem("", widget.NewLabel(t("APIKeyHint"))))
 
-	borderlessCheckbox := widget.NewCheck("", func(b bool) {})
-	isBorderless := fyneApplication.Preferences().BoolWithFallback(preferenceBorderless, true)
-	borderlessCheckbox.Checked = isBorderless
-	items = append(items, widget.NewFormItem(t("BorderlessWindow"), borderlessCheckbox))
-
 	linkAddCheckCheckbox := widget.NewCheck("", func(b bool) {})
 	isAddChecked := fyneApplication.Preferences().BoolWithFallback(preferenceCheckAdd, false)
 	linkAddCheckCheckbox.Checked = isAddChecked
@@ -102,7 +97,6 @@ func showSettingsDialog() {
 			if len(inputAPIKey) > 0 {
 				fyneApplication.Preferences().SetString(preferenceAPIKey, inputAPIKey)
 			}
-			fyneApplication.Preferences().SetBool(preferenceBorderless, borderlessCheckbox.Checked)
 			fyneApplication.Preferences().SetBool(preferenceCheckAdd, linkAddCheckCheckbox.Checked)
 			fyneApplication.Preferences().SetBool(preferenceCloseAfterAdd, closeAfterAddCheckbox.Checked)
 
