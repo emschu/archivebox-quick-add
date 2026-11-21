@@ -2,8 +2,8 @@ SHELL := /bin/bash
 
 # go requirements: fyne + fyne-cross
 
-APP_VERSION_STR = "v1-14"
-APP_VERSION_DOT := "1.14"
+APP_VERSION_STR = "v2-0"
+APP_VERSION_DOT := "2.0"
 
 GO := GO111MODULE=on CGO_ENABLED=1 go
 GO_PATH = $(shell $(GO) env GOPATH)

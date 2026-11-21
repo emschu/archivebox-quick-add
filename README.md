@@ -3,7 +3,7 @@
 **A simple utility application to quickly archive URLs with an existing
 [ArchiveBox](https://github.com/ArchiveBox/ArchiveBox/) instance in the background, without interrupting your work.**
 
-Version: 1.14
+Version: 2.0
 
 ![App Logo](./Icon.png)
 

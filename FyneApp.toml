@@ -4,7 +4,7 @@ Website = "https://github.com/emschu/archivebox-quick-add"
 Icon = "Icon.png"
 Name = "ArchiveBox-QuickAdd"
 ID = "org.emschu.archivebox-quick-add"
-Version = "1.14"
+Version = "2.0"
 Build = 6
 
 [LinuxAndBSD]
