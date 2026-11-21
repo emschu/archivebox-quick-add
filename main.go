@@ -50,6 +50,11 @@ var archiveSearchHTTPClient = &http.Client{
 	Timeout: 30 * time.Second,
 }
 
+// adding a URL may take a while on the server side
+var addURLHTTPClient = &http.Client{
+	Timeout: 60 * time.Second,
+}
+
 var fyneApplication fyne.App
 var window fyne.Window
 var windowSize = fyne.Size{Width: 600, Height: 200}
@@ -71,15 +76,13 @@ type applicationConfiguration struct {
 	AppVersion      string
 	AppLinkToGitHub string
 	InstanceURL     string
+	APIKey          string
 	Localizer       *i18n.Localizer
 }
 
-// store archivebox session state, e.g. cookies
+// stores the current state of the connection to the archivebox instance
 type sessionState struct {
 	IsConnected         bool
-	CsrfToken           *http.Cookie
-	SessionCookie       *http.Cookie
-	CsrfMiddlewareToken string
 	ConnectionErr       error // store latest error
 	IsSubmissionBlocked atomicBool
 	IsCloseBlocked      atomicBool
@@ -87,8 +90,7 @@ type sessionState struct {
 
 const (
 	preferenceInstanceURL   = "InstanceURL"   // string
-	preferenceUsername      = "Username"      // string
-	preferencePassword      = "Password"      // string
+	preferenceAPIKey        = "APIKey"        // string
 	preferenceBorderless    = "Borderless"    // bool
 	preferenceCheckAdd      = "CheckAdd"      // bool
 	preferenceCloseAfterAdd = "CloseAfterAdd" // bool
@@ -112,8 +114,9 @@ func main() {
 	fyneApplication = app.NewWithID(appConfig.AppID)
 	fyneApplication.SetIcon(resourceIconPng)
 
-	// load archive box instance url
+	// load archive box instance url and api key
 	appConfig.InstanceURL = fyneApplication.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
+	appConfig.APIKey = fyneApplication.Preferences().StringWithFallback(preferenceAPIKey, "")
 
 	isFirstRun := fyneApplication.Preferences().BoolWithFallback(preferenceFirstRun, true)
 	if isFirstRun {
@@ -163,10 +166,6 @@ func main() {
 		Italic:    false,
 		Monospace: false,
 	}
-
-	defer func() {
-		doArchiveBoxLogout()
-	}()
 
 	parsedURL, err := url.Parse(appConfig.InstanceURL)
 	var instanceLink fyne.Widget
@@ -246,8 +245,7 @@ func main() {
 
 func (*applicationConfiguration) doInitialPreferenceSetup() {
 	fyneApplication.Preferences().SetString(preferenceInstanceURL, "http://127.0.0.1:8000")
-	fyneApplication.Preferences().SetString(preferenceUsername, "")
-	fyneApplication.Preferences().SetString(preferencePassword, "")
+	fyneApplication.Preferences().SetString(preferenceAPIKey, "")
 	fyneApplication.Preferences().SetBool(preferenceBorderless, true)
 	fyneApplication.Preferences().SetBool(preferenceCloseAfterAdd, true)
 	fyneApplication.Preferences().SetBool(preferenceCheckAdd, true)

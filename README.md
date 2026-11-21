@@ -12,11 +12,12 @@ Developed with [Golang](https://go.dev/) using the [fyne toolkit](https://github
 
 Please note, that this software is primarily tested on Linux systems at the moment.
 
-*Note:* Because there is no real HTTP API of the ArchiveBox software (yet), the solution used in this app to login and
-submit a link should work in general, but this is not how it should be done with an existing HTTP API.
+*Note:* This app uses the official ArchiveBox REST API. Create an API key for your user in the ArchiveBox admin
+interface at `/admin/api/apitoken/` and enter it in the app's settings alongside the instance URL.
 
 ## Features
 
+- Uses the modern ArchiveBox REST API with API key authentication (no login form or session cookies).
 - Allows you quickly adding a link to ArchiveBox.
     - If your clipboard contains a valid URL, it will be set to the input field on app's startup
     - Shortcut: Type `Ctrl+Return` to archive input link

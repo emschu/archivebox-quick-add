@@ -1,4 +1,6 @@
 {
+  "APIKey": "API-Schlüssel",
+  "APIKeyHint": "API-Schlüssel findest du in der ArchiveBox-Administration",
   "AddToArchive": "Zum Archiv hinzufügen",
   "AlreadySet": "Bereits gesetzt",
   "Appearance": "Erscheinungsbild",
@@ -16,13 +18,13 @@
   "Info": "Info",
   "InfoIndependence": "Dieses Projekt ist unabhängig\nvom offiziellen ArchiveBox-Projekt.",
   "Information": "Information",
+  "InvalidAPIKey": "Ungültiger API-Schlüssel",
   "InvalidURL": "URL ist nicht valide",
   "License": "Lizenz",
   "NoConnectionPossible": "Keine Verbindung möglich!",
   "NoConnectionToInstance": "Keine Verbindung zur ArchiveBox-Instanz",
   "NotificationTitle": "{{.APP_NAME}} - URL archivieren",
   "OK": "OK",
-  "Password": "Passwort",
   "PasteClipboard": "Zwischenablage einfügen",
   "ProblemAddingURL": "Problem beim Archivieren der URL: {{.ERROR}}",
   "ProblemCallingArchiveBox": "Problem mit der Verbindung zu ArchiveBox. URL: '{{.URL}}'.",
@@ -33,6 +35,5 @@
   "URLTooShort": "Zu kurz",
   "UnexpectedStatusCode": "Unerwarteter HTTP Status Code: {{.Code}}",
   "UnknownProblemAddingURL": "Unbekanntes Problem beim Archivieren der URL",
-  "Username": "Benutzername",
   "Version": "Version"
 }

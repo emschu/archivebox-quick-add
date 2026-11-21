@@ -18,17 +18,18 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
-	"time"
 
 	"fyne.io/fyne/v2"
 )
+
+const apiBasePath = "/api/v1/"
 
 func isURL(inputStr string) bool {
 	parse, err := url.Parse(inputStr)
@@ -44,209 +45,105 @@ func isURL(inputStr string) bool {
 	return false
 }
 
-func doArchiveBoxLogin() {
-	pw := fyneApplication.Preferences().StringWithFallback(preferencePassword, "")
-	username := fyneApplication.Preferences().StringWithFallback(preferenceUsername, "")
+// buildAPIRequest creates a request against the ArchiveBox REST API and
+// authenticates it with the configured API key.
+func buildAPIRequest(method, apiPath string, requestBody []byte) (*http.Request, error) {
+	instanceURL := strings.TrimRight(strings.TrimSpace(appConfig.InstanceURL), "/")
+	requestURL := instanceURL + apiBasePath + strings.TrimLeft(apiPath, "/")
 
-	paramStr := fmt.Sprintf("csrfmiddlewaretoken=%s&username=%s&password=%s&next=%%2F",
-		appSessionState.CsrfMiddlewareToken, url.QueryEscape(username), url.QueryEscape(pw))
-	buffer := bytes.NewBuffer([]byte(paramStr))
-
-	request, err := buildPostRequest("/admin/login/?next=", buffer)
-
-	transport := http.Transport{}
-	do, err := transport.RoundTrip(request)
+	var reader io.Reader
+	if requestBody != nil {
+		reader = bytes.NewReader(requestBody)
+	}
+	request, err := http.NewRequest(method, requestURL, reader)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	defer do.Body.Close()
-
-	if do.StatusCode != 302 {
-		// something went wrong
-		log.Printf("Problem with login! Got status %d\n", do.StatusCode)
-		appSessionState.SessionCookie = nil
-		return
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(appConfig.APIKey))
+	if requestBody != nil {
+		request.Header.Set("Content-Type", "application/json")
 	}
-
-	for _, i := range do.Cookies() {
-		if strings.HasPrefix(i.Name, "archivebox_sessionid_") {
-			appSessionState.SessionCookie = i
-			log.Printf("Session id is set successfully")
-			appSessionState.IsConnected = true
-			break
-		}
-	}
-}
-
-func doArchiveBoxLogout() {
-	// TODO the logout mechanism is broken. Do not touch it yet
-	if appSessionState.SessionCookie == nil || appSessionState.CsrfToken == nil {
-		// there was no login
-		return
-	}
-
-	request, err := buildGetRequest("/admin/logout/")
-	if err != nil {
-		log.Printf("Error creating logout request\n")
-		return
-	}
-
-	get, err := httpClient.Do(request)
-	if err != nil {
-		log.Printf("Logout request failed!:%v\n", err)
-		return
-	}
-	if get.StatusCode == 200 {
-		log.Printf("Logout\n")
-	} else {
-		log.Printf("Logout not successful\n")
-	}
-	defer get.Body.Close()
-}
-
-func buildGetRequest(apiPath string) (*http.Request, error) {
-	request, err := http.NewRequest("GET", fmt.Sprintf("%s%s", appConfig.InstanceURL, apiPath), nil)
-	if err != nil {
-		panic(err)
-	}
-
-	if appSessionState.CsrfToken != nil {
-		request.AddCookie(appSessionState.CsrfToken)
-	}
-	if appSessionState.SessionCookie != nil {
-		request.AddCookie(appSessionState.SessionCookie)
-	}
-	return request, err
-}
-
-func buildPostRequest(apiPath string, requestData *bytes.Buffer) (*http.Request, error) {
-	request, err := http.NewRequest("POST", fmt.Sprintf("%s%s", appConfig.InstanceURL, apiPath), requestData)
-	if err != nil {
-		panic(err)
-	}
-	request.Header.Set("Cache-Control", "max-age=0, no-cache, no-store, must-revalidate, private")
-	request.Header.Set("Host", appConfig.InstanceURL)
-	request.Header.Set("Origin", appConfig.InstanceURL)
-	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	request.Header.Set("Content-Length", "0")
-	if appSessionState.CsrfToken != nil {
-		request.AddCookie(appSessionState.CsrfToken)
-	}
-	if appSessionState.SessionCookie != nil {
-		request.AddCookie(appSessionState.SessionCookie)
-	}
-
 	return request, nil
 }
 
-func setupArchiveBoxConnection() {
+// checkArchiveBoxConnection verifies the configured API key using the
+// /auth/check_api_token endpoint. It is free of UI calls so it can be tested
+// without a running Fyne application.
+func checkArchiveBoxConnection() error {
+	appSessionState.IsConnected = false
+
 	if len(strings.TrimSpace(appConfig.InstanceURL)) == 0 {
-		appSessionState.ConnectionErr = fmt.Errorf("invalid empty url to archivebox")
-		appConfig.disconnect()
-		return
+		return fmt.Errorf("invalid empty url to archivebox")
 	}
 	if !isURL(appConfig.InstanceURL) {
-		appSessionState.ConnectionErr = fmt.Errorf("url does not start with 'http[s]://'")
-		appConfig.disconnect()
-		return
+		return fmt.Errorf("url does not start with 'http[s]://'")
+	}
+	if len(strings.TrimSpace(appConfig.APIKey)) == 0 {
+		return fmt.Errorf("%s", t("InvalidAPIKey"))
 	}
 
-	adminResp, err := httpClient.Get(fmt.Sprintf("%s/admin/login/", appConfig.InstanceURL))
+	credentials, err := json.Marshal(struct {
+		Token string `json:"token"`
+	}{Token: strings.TrimSpace(appConfig.APIKey)})
 	if err != nil {
+		return err
+	}
+	request, err := buildAPIRequest(http.MethodPost, "auth/check_api_token", credentials)
+	if err != nil {
+		return err
+	}
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s", tWithArgs("UnexpectedStatusCode", struct {
+			Code int
+		}{Code: response.StatusCode}))
+	}
+
+	var checkResult struct {
+		Success  bool   `json:"success"`
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&checkResult); err != nil {
+		return fmt.Errorf("invalid API response: %w", err)
+	}
+	if !checkResult.Success {
+		return fmt.Errorf("%s", t("InvalidAPIKey"))
+	}
+
+	appSessionState.IsConnected = true
+	if isDebug {
+		log.Printf("Authenticated as '%s'\n", checkResult.Username)
+	}
+	return nil
+}
+
+// setupArchiveBoxConnection is the UI-facing wrapper around the connection check.
+func setupArchiveBoxConnection() {
+	if err := checkArchiveBoxConnection(); err != nil {
 		appSessionState.ConnectionErr = err
 		appConfig.disconnect()
 		return
 	}
-	defer adminResp.Body.Close()
-
-	for _, c := range adminResp.Cookies() {
-		if strings.HasPrefix(c.Name, "archivebox_csrftoken_") {
-			if len(c.Value) > 0 {
-				appSessionState.CsrfToken = c
-			}
-			if isDebug {
-				log.Printf("csrf token: %v\n", c.Value)
-			}
-		}
-	}
-	pattern := regexp.MustCompile("name=\"csrfmiddlewaretoken\" value=\"(.*?)\"")
-	all, err := ioutil.ReadAll(adminResp.Body)
-	if err != nil {
-		csrfErrMsg := "Cannot find csrfmiddlewaretoken!"
-		log.Println(csrfErrMsg)
-		appSessionState.ConnectionErr = fmt.Errorf("%s", csrfErrMsg)
-		appConfig.disconnect()
-		return
-	}
-	if len(strings.TrimSpace(string(all))) > 0 {
-		match := pattern.FindStringSubmatch(string(all))
-		if len(match) > 1 && len(match[1]) > 0 {
-			appSessionState.CsrfMiddlewareToken = strings.TrimSpace(match[1])
-		} else {
-			log.Printf("Problem finding csrfmiddlewaretoken!\n")
-		}
-	}
-	if isDebug {
-		log.Printf("csrfmiddlewaretoken: %s\n", appSessionState.CsrfMiddlewareToken)
-	}
-
-	if appSessionState.SessionCookie == nil {
-		if len(appSessionState.CsrfMiddlewareToken) > 0 && appSessionState.CsrfToken != nil {
-			doArchiveBoxLogin()
-		} else {
-			log.Printf("Cannot start login")
-		}
-	}
+	appSessionState.ConnectionErr = nil
 }
 
-func isURLAlreadyArchived(urlToCheck string) bool {
-	urlToCheck = strings.TrimSpace(urlToCheck)
-	if !appSessionState.IsConnected {
-		return false
-	}
-	// validate url at first
-	if len(urlToCheck) < 5 || !isURL(urlToCheck) {
-		return false
-	}
-
-	snapshotSearchPath := fmt.Sprintf("/admin/core/snapshot/?q=%s", url.QueryEscape(urlToCheck))
-
-	request, err := buildGetRequest(snapshotSearchPath)
-	if err != nil {
-		log.Printf("Problem creating request\n")
-		return false
-	}
-
-	// use a higher another client timeout value to wait for search results
-	do, err := archiveSearchHTTPClient.Do(request)
-	if err != nil {
-		log.Printf("Problem fetching snapshot search page: %v\n", err)
-		return false
-	}
-	defer do.Body.Close()
-
-	content, err := ioutil.ReadAll(do.Body)
-	if err != nil {
-		log.Printf("Problem reading response body:%s\n", err.Error())
-		return false
-	}
-
-	// check if result size is zero
-	pattern := regexp.MustCompile("<span class=\"small quiet\">0 results \\(<a href=\"?\">[0-9]+ total</a>\\)</span>")
-	if pattern.Match(content) {
-		return false
-	}
-	return true
+// cliCommandResponse mirrors the response of the ArchiveBox CLI API endpoints.
+type cliCommandResponse struct {
+	Success bool     `json:"success"`
+	Errors  []string `json:"errors"`
+	Result  any      `json:"result"`
+	Stdout  string   `json:"stdout"`
+	Stderr  string   `json:"stderr"`
 }
 
-func sendURLToArchiveBox(urlToSave string) (bool, error) {
-	setupArchiveBoxConnection()
+// addURLToArchiveBox submits a URL through POST /api/v1/cli/add.
+func addURLToArchiveBox(urlToSave string) (bool, error) {
 	urlToSave = strings.TrimSpace(urlToSave)
-	if !appSessionState.IsConnected {
-		return false, fmt.Errorf("%s", t("NoConnectionToInstance"))
-	}
-
-	// validate url at first
 	if len(urlToSave) < 5 {
 		return false, fmt.Errorf("%s", t("URLTooShort"))
 	}
@@ -254,37 +151,120 @@ func sendURLToArchiveBox(urlToSave string) (bool, error) {
 		return false, fmt.Errorf("%s", t("InvalidURL"))
 	}
 
-	buffer := bytes.NewBuffer([]byte(fmt.Sprintf("csrfmiddlewaretoken=%s&url=%s&parser=auto&tag=&depth=0",
-		appSessionState.CsrfMiddlewareToken, url.QueryEscape(urlToSave))))
-	request, err := buildPostRequest("/add/", buffer)
+	payload, err := json.Marshal(struct {
+		URLs   []string `json:"urls"`
+		Parser string   `json:"parser"`
+		Tag    string   `json:"tag"`
+		Depth  int      `json:"depth"`
+	}{
+		URLs:   []string{urlToSave},
+		Parser: "auto",
+		Tag:    "",
+		Depth:  0,
+	})
 	if err != nil {
-		panic(err)
+		return false, err
 	}
-	transport := http.Transport{}
+	request, err := buildAPIRequest(http.MethodPost, "cli/add", payload)
+	if err != nil {
+		return false, err
+	}
 
-	// the endpoint sometimes needs a lot of time (~60 secs) until there is a response
-	// therefore we 'cancel' the post request after 2 secs and ArchiveBox should have the request
-	transport.ResponseHeaderTimeout = 2 * time.Second // this should be enough time to wait for the request being processed by ArchiveBox
-	do, err := transport.RoundTrip(request)
+	response, err := addURLHTTPClient.Do(request)
 	if err != nil {
-		if strings.HasSuffix(err.Error(), "timeout awaiting response headers") {
-			// this is expected
-			return true, nil
-		}
-		msg := tWithArgs("ProblemCallingArchiveBox", struct {
+		return false, fmt.Errorf("%s", tWithArgs("ProblemCallingArchiveBox", struct {
 			URL string
-		}{URL: appConfig.InstanceURL})
-		log.Printf("%s\n", msg)
-		return false, fmt.Errorf("%s", msg)
+		}{URL: appConfig.InstanceURL}))
 	}
-	defer do.Body.Close()
-	log.Printf("entry add response status: %v\n", do.StatusCode)
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("%s", tWithArgs("UnexpectedStatusCode", struct {
+			Code int
+		}{Code: response.StatusCode}))
+	}
+
+	var result cliCommandResponse
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return false, fmt.Errorf("invalid API response: %w", err)
+	}
+	if !result.Success {
+		if len(result.Errors) > 0 {
+			return false, fmt.Errorf("%s", strings.Join(result.Errors, "; "))
+		}
+		return false, fmt.Errorf("%s", t("UnknownProblemAddingURL"))
+	}
+	if isDebug {
+		log.Printf("entry add response: %s\n", result.Stdout)
+	}
 	return true, nil
+}
+
+func sendURLToArchiveBox(urlToSave string) (bool, error) {
+	if err := checkArchiveBoxConnection(); err != nil {
+		appSessionState.ConnectionErr = err
+		appConfig.disconnect()
+		return false, fmt.Errorf("%s", t("NoConnectionToInstance"))
+	}
+	return addURLToArchiveBox(urlToSave)
+}
+
+// snapshotURLCount returns the number of snapshots matching an exact URL.
+func snapshotURLCount(urlToCheck string) (int, error) {
+	apiPath := fmt.Sprintf("core/snapshots?url=%s&limit=1", url.QueryEscape(urlToCheck))
+	request, err := buildAPIRequest(http.MethodGet, apiPath, nil)
+	if err != nil {
+		return 0, err
+	}
+	response, err := archiveSearchHTTPClient.Do(request)
+	if err != nil {
+		return 0, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("%s", tWithArgs("UnexpectedStatusCode", struct {
+			Code int
+		}{Code: response.StatusCode}))
+	}
+
+	var result struct {
+		Count int `json:"count"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return 0, fmt.Errorf("invalid API response: %w", err)
+	}
+	return result.Count, nil
+}
+
+func isURLAlreadyArchived(urlToCheck string) bool {
+	urlToCheck = strings.TrimSpace(urlToCheck)
+	if !appSessionState.IsConnected {
+		return false
+	}
+	if len(urlToCheck) < 5 || !isURL(urlToCheck) {
+		return false
+	}
+	// ArchiveBox normalizes trailing slashes away on some URLs, so check both forms.
+	candidates := []string{urlToCheck}
+	if strings.HasSuffix(urlToCheck, "/") {
+		candidates = append(candidates, strings.TrimRight(urlToCheck, "/"))
+	} else {
+		candidates = append(candidates, urlToCheck+"/")
+	}
+	for _, candidate := range candidates {
+		count, err := snapshotURLCount(candidate)
+		if err != nil {
+			log.Printf("Problem fetching snapshots: %v\n", err)
+			return false
+		}
+		if count > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // should be non-blocking to be safe for ui, handles validation of input
 func archiveURL(urlInput string) {
-	setupArchiveBoxConnection()
 	urlInput = strings.TrimSpace(urlInput)
 	if appSessionState.IsSubmissionBlocked.isSet() {
 		if isDebug {
@@ -319,10 +299,10 @@ func archiveURL(urlInput string) {
 							URL string
 						}{URL: urlString}),
 					})
-					if closeAppPref {
-						fyneApplication.Quit()
-					}
 					fyne.Do(func() {
+						if closeAppPref {
+							fyneApplication.Quit()
+						}
 						inputEntryWidget.SetText("")
 					})
 				} else {

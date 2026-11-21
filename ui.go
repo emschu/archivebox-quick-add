@@ -48,30 +48,27 @@ func showSettingsDialog() {
 	var items []*widget.FormItem
 	instanceURLEntry := widget.NewEntry()
 	instanceURLEntry.Text = fyneApplication.Preferences().StringWithFallback(preferenceInstanceURL, "http://127.0.0.1:8000")
-	instanceURLEntry.Validator = validation.NewRegexp("^http[s]?://.*:[0-9]{1,5}$", "invalid URL")
+	instanceURLEntry.Validator = validation.NewRegexp("^https?://[^\\s]+$", "invalid URL")
 	items = append(items, widget.NewFormItem(t("ArchiveBoxURL"), instanceURLEntry))
 
-	userNameEntry := widget.NewEntry()
-	userNameEntry.Text = fyneApplication.Preferences().StringWithFallback(preferenceUsername, "")
-	userNameEntry.Validator = validation.NewRegexp("^\\s*\\S{2,}\\s*$", "too short")
-	items = append(items, widget.NewFormItem(t("Username"), userNameEntry))
-
-	passwordEntry := widget.NewPasswordEntry()
-	passwordEntry.ActionItem = nil
-	currentPw := fyneApplication.Preferences().StringWithFallback(preferencePassword, "")
-	if len(currentPw) > 0 {
-		passwordEntry.SetPlaceHolder(t("AlreadySet"))
-		passwordEntry.OnChanged = func(s string) {
-			if len(strings.TrimSpace(s)) > 0 && passwordEntry.Validator == nil {
-				passwordEntry.Validator = validation.NewRegexp("^\\s*\\S{2,}\\s*$", "too short")
+	apiKeyEntry := widget.NewPasswordEntry()
+	apiKeyEntry.ActionItem = nil
+	currentAPIKey := fyneApplication.Preferences().StringWithFallback(preferenceAPIKey, "")
+	apiKeyValidator := validation.NewRegexp("^\\s*\\S{8,}\\s*$", "too short")
+	if len(currentAPIKey) > 0 {
+		apiKeyEntry.SetPlaceHolder(t("AlreadySet"))
+		apiKeyEntry.OnChanged = func(s string) {
+			if len(strings.TrimSpace(s)) > 0 {
+				apiKeyEntry.Validator = apiKeyValidator
 			} else {
-				passwordEntry = nil
+				apiKeyEntry.Validator = nil
 			}
 		}
 	} else {
-		passwordEntry.Validator = validation.NewRegexp("^\\s*\\S{2,}\\s*$", "too short")
+		apiKeyEntry.Validator = apiKeyValidator
 	}
-	items = append(items, widget.NewFormItem(t("Password"), passwordEntry))
+	items = append(items, widget.NewFormItem(t("APIKey"), apiKeyEntry))
+	items = append(items, widget.NewFormItem("", widget.NewLabel(t("APIKeyHint"))))
 
 	borderlessCheckbox := widget.NewCheck("", func(b bool) {})
 	isBorderless := fyneApplication.Preferences().BoolWithFallback(preferenceBorderless, true)
@@ -101,14 +98,18 @@ func showSettingsDialog() {
 		if b {
 			log.Printf("Updating preferences! \n")
 			fyneApplication.Preferences().SetString(preferenceInstanceURL, strings.TrimSpace(instanceURLEntry.Text))
-			fyneApplication.Preferences().SetString(preferenceUsername, strings.TrimSpace(userNameEntry.Text))
-			inputPw := strings.TrimSpace(passwordEntry.Text)
-			if len(inputPw) > 0 {
-				fyneApplication.Preferences().SetString(preferencePassword, inputPw)
+			inputAPIKey := strings.TrimSpace(apiKeyEntry.Text)
+			if len(inputAPIKey) > 0 {
+				fyneApplication.Preferences().SetString(preferenceAPIKey, inputAPIKey)
 			}
 			fyneApplication.Preferences().SetBool(preferenceBorderless, borderlessCheckbox.Checked)
 			fyneApplication.Preferences().SetBool(preferenceCheckAdd, linkAddCheckCheckbox.Checked)
 			fyneApplication.Preferences().SetBool(preferenceCloseAfterAdd, closeAfterAddCheckbox.Checked)
+
+			// use the new values without requiring a restart
+			appConfig.InstanceURL = fyneApplication.Preferences().String(preferenceInstanceURL)
+			appConfig.APIKey = fyneApplication.Preferences().String(preferenceAPIKey)
+			go setupArchiveBoxConnection()
 		}
 	}, window)
 
@@ -117,8 +118,8 @@ func showSettingsDialog() {
 		Height: 500,
 	})
 	settingsDialog.Resize(fyne.Size{
-		Width:  500,
-		Height: 250,
+		Width:  450,
+		Height: 300,
 	})
 	settingsDialog.SetOnClosed(func() {
 		// restore original main window settings
