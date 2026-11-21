@@ -17,7 +17,7 @@ interface at `/admin/api/apitoken/` and enter it in the app's settings alongside
 
 ## Features
 
-- Uses the modern ArchiveBox REST API with API key authentication (no login form or session cookies).
+- Uses the modern ArchiveBox REST API with API key authentication.
 - Allows you quickly adding a link to ArchiveBox.
     - If your clipboard contains a valid URL, it will be set to the input field on app's startup
     - Shortcut: Type `Ctrl+Return` to archive input link

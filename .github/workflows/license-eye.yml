@@ -1,0 +1,33 @@
+name: LicenseEye
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  license-check:
+    name: Check license headers
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check license headers
+        uses: apache/skywalking-eyes/header@v0.9.0
+        with:
+          config: .licenserc.yaml
+          token: "" # disable pull request comments (no extra permissions needed)

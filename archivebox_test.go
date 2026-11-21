@@ -1,5 +1,5 @@
 // archivebox-quick-add
-// 2022 emschu[aet]mailbox.org
+// 2026 emschu[aet]mailbox.org
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -18,7 +18,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -127,15 +126,37 @@ func TestAddURLToArchiveBox(t *testing.T) {
 			t.Errorf("unexpected parser/depth: %q/%d", payload.Parser, payload.Depth)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"success": true, "errors": [], "result": [], "stdout": "", "stderr": ""}`))
+		_, _ = w.Write([]byte(`{"success": true, "errors": [], "result": {"crawl_id": "crawl-123", "num_snapshots": 0, "snapshot_ids": [], "queued_urls": ["https://example.com/page"]}, "stdout": "", "stderr": ""}`))
 	})
 
-	worked, err := addURLToArchiveBox("  https://example.com/page  ")
+	outcome, err := addURLToArchiveBox("  https://example.com/page  ")
 	if err != nil {
 		t.Fatalf("adding url failed: %v", err)
 	}
-	if !worked {
-		t.Error("adding url did not report success")
+	if !outcome.Accepted {
+		t.Error("adding url did not report acceptance")
+	}
+	if outcome.CrawlID != "crawl-123" {
+		t.Errorf("unexpected crawl id: %q", outcome.CrawlID)
+	}
+}
+
+func TestAddURLToArchiveBoxLegacyResult(t *testing.T) {
+	setupAPIClientTest(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Older ArchiveBox versions return an array here instead of an object.
+		_, _ = w.Write([]byte(`{"success": true, "errors": [], "result": [], "stdout": "", "stderr": ""}`))
+	})
+
+	outcome, err := addURLToArchiveBox("https://example.com")
+	if err != nil {
+		t.Fatalf("adding url failed: %v", err)
+	}
+	if !outcome.Accepted {
+		t.Error("legacy array result must not prevent acceptance")
+	}
+	if outcome.CrawlID != "" {
+		t.Errorf("unexpected crawl id from legacy result: %q", outcome.CrawlID)
 	}
 }
 
@@ -145,51 +166,11 @@ func TestAddURLToArchiveBoxReportsAPIErrors(t *testing.T) {
 		_, _ = w.Write([]byte(`{"success": false, "errors": ["invalid url"], "result": null, "stdout": "", "stderr": ""}`))
 	})
 
-	worked, err := addURLToArchiveBox("https://example.com")
+	outcome, err := addURLToArchiveBox("https://example.com")
 	if err == nil || !strings.Contains(err.Error(), "invalid url") {
 		t.Fatalf("expected API error to be reported, got: %v", err)
 	}
-	if worked {
-		t.Error("failed add must not report success")
-	}
-}
-
-func TestIsURLAlreadyArchived(t *testing.T) {
-	wantCount := 1
-	setupAPIClientTest(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/core/snapshots" {
-			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
-		}
-		assertBearerAuth(t, r)
-		if got := r.URL.Query().Get("url"); got != "https://example.com" && got != "https://example.com/" {
-			t.Errorf("unexpected url filter: %q", got)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(fmt.Sprintf(`{"count": %d, "items": []}`, wantCount)))
-	})
-	appSessionState.IsConnected = true
-
-	if !isURLAlreadyArchived("https://example.com") {
-		t.Error("expected existing snapshot to be found")
-	}
-	wantCount = 0
-	if isURLAlreadyArchived("https://example.com") {
-		t.Error("expected no snapshot to be found")
-	}
-}
-
-func TestIsURLAlreadyArchivedTrailingSlash(t *testing.T) {
-	setupAPIClientTest(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		count := 0
-		if r.URL.Query().Get("url") == "https://example.com" {
-			count = 1
-		}
-		_, _ = w.Write([]byte(fmt.Sprintf(`{"count": %d, "items": []}`, count)))
-	})
-	appSessionState.IsConnected = true
-
-	if !isURLAlreadyArchived("https://example.com/") {
-		t.Error("expected the normalized URL without trailing slash to be found")
+	if outcome.Accepted {
+		t.Error("failed add must not report acceptance")
 	}
 }

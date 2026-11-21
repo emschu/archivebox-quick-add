@@ -1,5 +1,5 @@
 // archivebox-quick-add
-// 2022 emschu[aet]mailbox.org
+// 2026 emschu[aet]mailbox.org
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -44,10 +44,6 @@ import (
 // default http client
 var httpClient = &http.Client{
 	Timeout: 10 * time.Second,
-}
-
-var archiveSearchHTTPClient = &http.Client{
-	Timeout: 30 * time.Second,
 }
 
 // adding a URL may take a while on the server side
@@ -244,7 +240,7 @@ func main() {
 }
 
 func (*applicationConfiguration) doInitialPreferenceSetup() {
-	fyneApplication.Preferences().SetString(preferenceInstanceURL, "http://127.0.0.1:8000")
+	fyneApplication.Preferences().SetString(preferenceInstanceURL, "http://127.0.0.1:5797")
 	fyneApplication.Preferences().SetString(preferenceAPIKey, "")
 	fyneApplication.Preferences().SetBool(preferenceBorderless, true)
 	fyneApplication.Preferences().SetBool(preferenceCloseAfterAdd, true)
